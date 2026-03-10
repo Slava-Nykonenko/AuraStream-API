@@ -8,28 +8,27 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from schemas.user import (
-    UserCreateRequest,
-    TokenPairResponse,
-    RefreshTokenRequest,
-    LoginSchema,
-    MessageSchema, PasswordResetCompleteSchema
-)
-from services.auth_user import AuthServices, get_current_user
-
 from database.models.user import (
     UserModel,
     ActivationTokenModel,
 )
 from database.session_postgresql import get_db
-
+from schemas.user import (
+    UserCreateRequest,
+    TokenPairResponse,
+    RefreshTokenRequest,
+    LoginSchema,
+    MessageSchema,
+    PasswordResetCompleteSchema
+)
+from services.auth_user import AuthServices, get_current_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
-@router.post("/register")
+@router.post("/register", response_model=MessageSchema)
 async def register_user(
         payload: UserCreateRequest,
         db: AsyncSession = Depends(get_db)
@@ -37,25 +36,27 @@ async def register_user(
     service = AuthServices()
     new_user = await service.sign_up(payload=payload, db=db)
     if new_user:
-        return {"message": "An activation link has sent to your email."}
+        return MessageSchema(
+            message="An activation link has sent to your email."
+        )
 
 
-@router.get("/activate")
+@router.get("/activate", response_model=MessageSchema)
 async def activate_account(token: str, db: AsyncSession = Depends(get_db)):
     service = AuthServices()
     user = await service.activate_user(token=token, db=db)
     if user:
-        return {
-            "message": "Account successfully activated! You can now log in."
-        }
+        return MessageSchema(
+            message="Account successfully activated! You can now log in."
+        )
+
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="User not found."
     )
 
 
-
-@router.post("/refresh-activation-link")
+@router.post("/refresh-activation-link", response_model=MessageSchema)
 async def refresh_activation_link(
         user_id: int,
         db: AsyncSession = Depends(get_db)
@@ -68,7 +69,7 @@ async def refresh_activation_link(
     user = await db.scalar(select(UserModel).where(UserModel.id == user_id))
     service = AuthServices()
     await service.create_activation_link(user=user, db=db)
-    return {"message": "A new activation link sent to your email."}
+    return MessageSchema(message="A new activation link sent to your email.")
 
 
 @router.post("/login", response_model=TokenPairResponse)
@@ -93,9 +94,9 @@ async def refresh_access_token(
 
 @router.post("/logout", response_model=MessageSchema)
 async def logout(
-    payload: RefreshTokenRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+        payload: RefreshTokenRequest,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user)
 ):
     service = AuthServices()
     result = await service.user_logout(
@@ -110,7 +111,7 @@ async def logout(
             detail="Token not found"
         )
 
-    return {"message": "Successfully logged out"}
+    return MessageSchema(message="Successfully logged out")
 
 
 @router.post("/password-reset-request", response_model=MessageSchema)
@@ -125,11 +126,11 @@ async def request_password_reset(
     )
 
 
-@router.get("/password-reset-confirm")
+@router.get("/password-reset-confirm", response_model=MessageSchema)
 async def confirm_password_reset(
         data: PasswordResetCompleteSchema,
         db: AsyncSession = Depends(get_db)
 ):
     await AuthServices.reset_password_confirm(data=data, db=db)
 
-    return {"message": "Password updated successfully."}
+    return MessageSchema(message="Password updated successfully.")

@@ -1,8 +1,8 @@
 import re
 from datetime import date, datetime
 from typing import Optional
+
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
-from sqlalchemy.orm import Query
 
 
 class UserBase(BaseModel):
@@ -74,4 +74,3 @@ class MessageSchema(BaseModel):
     message: str
 
     model_config = ConfigDict(from_attributes=True)
-

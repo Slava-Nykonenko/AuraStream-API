@@ -20,7 +20,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.models.base import Base
 from database.models.movies import MoviesModel
 
-
 user_favorites = Table(
     "user_favorites",
     Base.metadata,
