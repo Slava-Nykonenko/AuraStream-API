@@ -4,6 +4,7 @@ from typing import Optional
 
 from jose import jwt, JWTError
 from passlib.context import CryptContext
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.settings import settings
@@ -32,10 +33,16 @@ async def create_activation_token(db: AsyncSession, user_id: int) -> str:
         expires_at=expires.replace(tzinfo=None)
     )
     db.add(new_token)
-    return token
+    await db.commit()
+    await db.refresh(new_token)
+    return new_token.token
 
 
 async def create_password_reset_token(db: AsyncSession, user_id: int) -> str:
+    await db.execute(
+        delete(PasswordResetTokenModel).where(
+            PasswordResetTokenModel.user_id == user_id)
+    )
     token = secrets.token_urlsafe(32)
     expires = datetime.now(timezone.utc) + timedelta(
         minutes=settings.RESET_TOKEN_EXPIRE_MINUTES
@@ -46,7 +53,9 @@ async def create_password_reset_token(db: AsyncSession, user_id: int) -> str:
         expires_at=expires.replace(tzinfo=None)
     )
     db.add(new_token)
-    return new_token.token
+    await db.commit()
+    await db.refresh(new_token)
+    return token
 
 
 async def create_refresh_token(db: AsyncSession, user_id: int) -> str:
@@ -60,6 +69,8 @@ async def create_refresh_token(db: AsyncSession, user_id: int) -> str:
         expires_at=expires.replace(tzinfo=None)
     )
     db.add(new_token)
+    await db.commit()
+    await db.refresh(new_token)
     return new_token.token
 
 

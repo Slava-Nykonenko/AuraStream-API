@@ -91,7 +91,7 @@ class UserModel(Base):
         DateTime(timezone=True),
         default=func.now(),
         server_default=func.now(),
-        on_update=func.now(),
+        onupdate=func.now(),
     )
 
     group_id: Mapped[int] = mapped_column(

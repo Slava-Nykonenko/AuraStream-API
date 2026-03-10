@@ -2,13 +2,14 @@ import re
 from datetime import date, datetime
 from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
+from sqlalchemy.orm import Query
 
 
 class UserBase(BaseModel):
     email: EmailStr
 
 
-class UserCreateRequest(UserBase):
+class PasswordBaseMixin:
     password: str = Field(..., min_length=8, max_length=100)
 
     @field_validator("password")
@@ -23,6 +24,10 @@ class UserCreateRequest(UserBase):
             raise ValueError(
                 "Password must contain at least one special character.")
         return v
+
+
+class UserCreateRequest(PasswordBaseMixin, UserBase):
+    pass
 
 
 class UserProfileRead(BaseModel):
@@ -50,6 +55,10 @@ class LoginSchema(UserBase):
     password: str
 
 
+class PasswordResetCompleteSchema(PasswordBaseMixin, BaseModel):
+    token: str
+
+
 class UserRead(UserBase):
     id: int
     is_active: bool
@@ -59,3 +68,10 @@ class UserRead(UserBase):
     profile: Optional[UserProfileRead] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MessageSchema(BaseModel):
+    message: str
+
+    model_config = ConfigDict(from_attributes=True)
+
