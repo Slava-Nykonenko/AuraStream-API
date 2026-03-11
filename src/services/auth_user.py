@@ -294,18 +294,14 @@ class AuthServices:
                 detail="Reset link has expired."
             )
 
-        user_stmt = select(UserModel).where(
-            UserModel.id == token_record.user_id)
-        user_result = await db.execute(user_stmt)
-        user = user_result.scalar_one_or_none()
-
+        user = await db.get(UserModel, token_record.user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User no longer exists."
+                detail="User not found."
             )
 
-        user.hashed_password = await hash_password(data.new_password)
+        user.hashed_password = hash_password(data.password)
         user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         await db.delete(token_record)
@@ -319,5 +315,3 @@ class AuthServices:
             body_data=body_data,
             msg_type="reset_pass_success",
         )
-
-        return None

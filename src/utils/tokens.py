@@ -41,7 +41,8 @@ async def create_activation_token(db: AsyncSession, user_id: int) -> str:
 async def create_password_reset_token(db: AsyncSession, user_id: int) -> str:
     await db.execute(
         delete(PasswordResetTokenModel).where(
-            PasswordResetTokenModel.user_id == user_id)
+            PasswordResetTokenModel.user_id == user_id
+        )
     )
     token = secrets.token_urlsafe(32)
     expires = datetime.now(timezone.utc) + timedelta(
@@ -54,7 +55,6 @@ async def create_password_reset_token(db: AsyncSession, user_id: int) -> str:
     )
     db.add(new_token)
     await db.commit()
-    await db.refresh(new_token)
     return token
 
 
