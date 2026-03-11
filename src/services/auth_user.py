@@ -1,10 +1,11 @@
 import secrets
 from datetime import UTC, datetime, timedelta, timezone
 
-from fastapi import HTTPException, status, Depends
+from fastapi import HTTPException, status
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.dependencies import get_user_by_email
 from core.settings import settings
 from database.models.user import (
     UserModel,
@@ -14,7 +15,6 @@ from database.models.user import (
     ActivationTokenModel,
     PasswordResetTokenModel
 )
-from database.session_postgresql import get_db
 from schemas.user import (
     UserCreateRequest,
     LoginSchema,
@@ -23,7 +23,6 @@ from schemas.user import (
 )
 from tasks.email_tasks import send_email
 from utils.tokens import (
-    decode_access_token,
     hash_password,
     create_activation_token,
     verify_password,
@@ -33,45 +32,6 @@ from utils.tokens import (
 )
 
 BASE_URL = settings.BASE_URL + "/auth"
-
-
-async def get_current_user(
-        token: str,
-        db: AsyncSession = Depends(get_db)
-):
-    payload = decode_access_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials"
-        )
-
-    user_id = payload.get("sub")
-    result = await db.execute(
-        select(UserModel).where(UserModel.id == int(user_id)))
-    user = result.scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
-        )
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user"
-        )
-
-    return user
-
-
-async def get_user_by_email(
-        email: str,
-        db: AsyncSession
-) -> UserModel:
-    stmt = select(UserModel).where(UserModel.email == email)
-    return await db.scalar(stmt)
 
 
 class AuthServices:

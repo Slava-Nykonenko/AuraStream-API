@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.dependencies import get_auth_service, get_current_user
 from database.models.user import (
     UserModel,
     ActivationTokenModel,
@@ -21,15 +22,12 @@ from schemas.user import (
     MessageSchema,
     PasswordResetCompleteSchema
 )
-from services.auth_user import AuthServices, get_current_user
+from services.auth_user import AuthServices
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
-
-def get_auth_service():
-    return AuthServices()
 
 @router.post("/register", response_model=MessageSchema)
 async def register_user(
