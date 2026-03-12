@@ -8,7 +8,7 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_auth_service, get_current_user
+from core.dependencies import get_current_user, get_user_by_email
 from database.models.user import (
     UserModel,
     ActivationTokenModel,
@@ -20,13 +20,17 @@ from schemas.user import (
     RefreshTokenRequest,
     LoginSchema,
     MessageSchema,
-    PasswordResetCompleteSchema
+    PasswordResetCompleteSchema, UserBase, ChangePasswordSchema
 )
 from services.auth_user import AuthServices
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
+
+def get_auth_service():
+    return AuthServices()
 
 
 @router.post("/register", response_model=MessageSchema)
@@ -62,16 +66,16 @@ async def activate_account(
 
 @router.post("/refresh-activation-link", response_model=MessageSchema)
 async def refresh_activation_link(
-        user_id: int,
+        payload: UserBase,
         db: AsyncSession = Depends(get_db),
         auth_service: AuthServices = Depends(get_auth_service)
 ):
+    user = await get_user_by_email(email=payload.email, db=db)
     await db.execute(
         delete(ActivationTokenModel).where(
-            ActivationTokenModel.user_id == user_id
+            ActivationTokenModel.user_id == user.id
         )
     )
-    user = await db.scalar(select(UserModel).where(UserModel.id == user_id))
     await auth_service.create_activation_link(user=user, db=db)
     return MessageSchema(message="A new activation link sent to your email.")
 
@@ -116,6 +120,26 @@ async def logout(
         )
 
     return MessageSchema(message="Successfully logged out")
+
+
+@router.post("/password-change", response_model=MessageSchema)
+async def password_change(
+        payload: ChangePasswordSchema,
+        current_user: UserModel = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+        auth_service: AuthServices = Depends(get_auth_service)
+):
+    result = await auth_service.change_password(
+        payload=payload,
+        user=current_user,
+        db=db
+    )
+    if result:
+        return MessageSchema(message="Password changed successfully")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Internal server error. Try again."
+    )
 
 
 @router.post("/password-reset-request", response_model=MessageSchema)

@@ -7,12 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from database.models.user import UserModel, UserGroupEnum
 from database.session_postgresql import get_db
-from services.auth_user import AuthServices
 from utils.tokens import decode_access_token
-
-
-def get_auth_service():
-    return AuthServices()
 
 
 async def get_current_user(

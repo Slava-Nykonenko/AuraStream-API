@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.dependencies import RoleChecker
+from database.models.user import UserGroupEnum, UserModel
 from database.session_postgresql import get_db
 from schemas.movies import (
     MovieListResponseSchema,
@@ -15,6 +17,11 @@ from services.movies import MovieService, generate_page_link
 
 router = APIRouter(prefix="/movie_theater", tags=["movies"])
 
+
+allow_moderator_plus = RoleChecker(
+    [UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN]
+)
+allow_admin_only = RoleChecker([UserGroupEnum.ADMIN])
 
 @router.get("/movies", response_model=MovieListResponseSchema)
 async def get_movies(
@@ -62,7 +69,8 @@ async def get_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/movies", response_model=MovieReadSchema)
 async def create_movie(
         movie_data: MovieCreateRequestSchema,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(allow_moderator_plus)
 ):
     service = MovieService()
     new_movie = await service.movie_create(movie_data=movie_data, db=db)
@@ -73,7 +81,8 @@ async def create_movie(
 async def update_movie(
         movie_data: MovieUpdateRequestSchema,
         movie_id: int,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(allow_moderator_plus)
 ):
     service = MovieService()
     return await service.movie_update(
@@ -84,7 +93,11 @@ async def update_movie(
 
 
 @router.delete("/movies/{movie_id}", status_code=status.HTTP_200_OK)
-async def delete_movie(movie_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_movie(
+        movie_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(allow_moderator_plus)
+):
     service = MovieService()
     deleted = await service.movie_delete(movie_id=movie_id, db=db)
     if not deleted:

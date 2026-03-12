@@ -19,7 +19,8 @@ from schemas.user import (
     UserCreateRequest,
     LoginSchema,
     RefreshTokenRequest,
-    PasswordResetCompleteSchema
+    PasswordResetCompleteSchema,
+    ChangePasswordSchema
 )
 from tasks.email_tasks import send_email
 from utils.tokens import (
@@ -212,6 +213,30 @@ class AuthServices:
         return result.rowcount
 
     @staticmethod
+    async def change_password(
+            payload: ChangePasswordSchema,
+            user: UserModel,
+            db: AsyncSession
+    ):
+        if not verify_password(payload.old_password, user.hashed_password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect old password."
+            )
+        user.hashed_password = hash_password(payload.password)
+        await db.commit()
+
+        body_data = {
+            "login_link": f"{BASE_URL}/login"
+        }
+        send_email.delay(
+            email=user.email,
+            body_data=body_data,
+            msg_type="reset_pass_success",
+        )
+        return True
+
+    @staticmethod
     async def reset_password(email: str, db: AsyncSession):
         user = await get_user_by_email(email=email, db=db)
         reset_token = await create_password_reset_token(db=db, user_id=user.id)
@@ -268,7 +293,7 @@ class AuthServices:
         await db.commit()
 
         body_data = {
-            "login_link": f"{settings.BASE_URL}/login"
+            "login_link": f"{BASE_URL}/login"
         }
         send_email.delay(
             email=user.email,

@@ -30,6 +30,12 @@ class UserCreateRequest(PasswordBaseMixin, UserBase):
     pass
 
 
+class ChangePasswordSchema(PasswordBaseMixin, BaseModel):
+    old_password: str = Field(..., min_length=8, max_length=100)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserProfileRead(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
