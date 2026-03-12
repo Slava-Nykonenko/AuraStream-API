@@ -52,15 +52,10 @@ async def activate_account(
         db: AsyncSession = Depends(get_db),
         auth_service: AuthServices = Depends(get_auth_service)
 ):
-    user = await auth_service.activate_user(token=token, db=db)
-    if user:
-        return MessageSchema(
-            message="Account successfully activated! You can now log in."
-        )
-
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail="User not found."
+    await auth_service.activate_user_by_token(token=token, db=db)
+    await db.commit()
+    return MessageSchema(
+        message="Account successfully activated! You can now log in."
     )
 
 

@@ -115,6 +115,21 @@ class AuthServices:
         }
 
     @staticmethod
+    async def _perform_user_activation(
+            user: UserModel,
+            db: AsyncSession
+    ):
+        user.is_active = True
+
+        token_stmt = delete(ActivationTokenModel).where(
+            ActivationTokenModel.user_id == user.id)
+        await db.execute(token_stmt)
+
+        await db.flush()
+        return user
+
+
+    @staticmethod
     async def refresh_token_pair(
             payload: RefreshTokenRequest,
             db: AsyncSession
@@ -166,8 +181,7 @@ class AuthServices:
             "token_type": "bearer"
         }
 
-    @staticmethod
-    async def activate_user(token: str, db: AsyncSession):
+    async def activate_user_by_token(self, token: str, db: AsyncSession):
         stmt = select(ActivationTokenModel).where(
             ActivationTokenModel.token == token)
         result = await db.execute(stmt)
@@ -180,7 +194,7 @@ class AuthServices:
 
         if token_record.expires_at < datetime.now(UTC).replace(tzinfo=None):
             await db.delete(token_record)
-            await db.commit()
+            await db.flush()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Activation link has expired."
@@ -190,13 +204,13 @@ class AuthServices:
             UserModel.id == token_record.user_id
         )
         user_result = await db.execute(user_stmt)
-        user = user_result.scalar_one_or_none()
-
-        if user:
-            user.is_active = True
-            await db.delete(token_record)
-            await db.commit()
-        return user
+        user = user_result.scalar()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found."
+            )
+        return await self._perform_user_activation(user, db)
 
     @staticmethod
     async def user_logout(
@@ -300,3 +314,19 @@ class AuthServices:
             body_data=body_data,
             msg_type="reset_pass_success",
         )
+
+    @staticmethod
+    async def change_user_group(
+            user: UserModel,
+            user_group: UserGroupEnum,
+            db: AsyncSession
+    ):
+        group_stmt = select(UserGroupModel).where(
+            UserGroupModel.name == user_group
+        )
+        group_result = await db.execute(group_stmt)
+        group_db = group_result.scalar_one_or_none()
+        user.group_id = group_db.id
+        user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        await db.flush()
+        return user

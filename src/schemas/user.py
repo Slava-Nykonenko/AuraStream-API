@@ -4,6 +4,8 @@ from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
+from database.models.user import UserGroupEnum
+
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -28,6 +30,13 @@ class PasswordBaseMixin:
 
 class UserCreateRequest(PasswordBaseMixin, UserBase):
     pass
+
+
+class ChangeUserGroupSchema(BaseModel):
+    email: str
+    user_group: UserGroupEnum
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ChangePasswordSchema(PasswordBaseMixin, BaseModel):
