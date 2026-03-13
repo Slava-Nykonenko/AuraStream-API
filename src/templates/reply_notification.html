@@ -1,0 +1,13 @@
+<html lang="en">
+<body style="font-family: Arial, sans-serif;">
+    <h2>Hi {{ user_name }},</h2>
+    <p>{{ replier_name }} just replied to your comment on {{ movie_name }}:</p>
+    <p>{{ message }}</p>
+    <p>Want to see what they said? Click below to view the full thread and join the conversation.</p>
+
+    <a href="{{ comment_url }}"
+       style="background-color: #28a745; color: white; padding: 12px; text-decoration: none; border-radius: 4px;">
+       View Comment
+    </a>
+</body>
+</html>

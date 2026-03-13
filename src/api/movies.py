@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.dependencies import (
     RoleChecker,
     get_current_user,
-    get_current_user_optional
+    get_current_user_optional, get_current_user_with_profile
 )
 from database.models.user import UserGroupEnum, UserModel
 from database.session_postgresql import get_db
@@ -18,9 +18,9 @@ from schemas.movies import (
     MovieFilterParams, MovieDetailBase,
 )
 from schemas.social import SocialActionResponseSchema, CommentReadSchema, \
-    CommentCreateSchema, CommentsListSchema
+    CommentCreateSchema, CommentsListSchema, ReplyCreateSchema
 from services.movies import MovieService, generate_page_link
-from services.social import SocialService, CommentService
+from services.social import SocialService
 
 router = APIRouter(prefix="/movie_theater", tags=["movies"])
 
@@ -89,7 +89,7 @@ async def get_movie(
             detail="Movie not found."
         )
 
-    comments_pagination = await CommentService.get_movie_comments(
+    comments_pagination = await SocialService.get_movie_comments(
         db=db,
         movie_id=movie_id,
         page=page,
@@ -182,7 +182,25 @@ async def post_comment(
 ):
     service = SocialService()
     comment = await service.add_comment(
-        db, current_user.id, movie_id, payload.content
+        db, current_user, movie_id, payload.content
     )
     await db.commit()
     return comment
+
+
+@router.post(
+    "/movies/{movie_id}/comments/reply",
+    response_model=CommentReadSchema
+)
+async def create_comment_reply(
+        movie_id: int,
+        reply_data: ReplyCreateSchema,
+        db: AsyncSession = Depends(get_db),
+        user: UserModel = Depends(get_current_user_with_profile)
+):
+    return await SocialService.create_reply(
+        db=db,
+        movie_id=movie_id,
+        user=user,
+        reply_data=reply_data
+    )

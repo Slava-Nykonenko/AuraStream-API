@@ -51,7 +51,8 @@ class MovieService:
         stmt = select(MoviesModel)
         if filters.get("only_favorites") and user_id:
             stmt = stmt.join(
-                user_favorites, user_favorites.c.movie_id == MoviesModel.id
+                user_favorites,
+                user_favorites.c.movie_id == MoviesModel.id
             ).where(user_favorites.c.user_id == user_id)
         if filters.get("star"):
             stmt = stmt.join(MoviesModel.stars).where(

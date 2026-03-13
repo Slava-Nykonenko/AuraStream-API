@@ -1,11 +1,25 @@
+from typing import List
+
+from fastapi import HTTPException, status
 from sqlalchemy import select, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, joinedload
+from sqlalchemy.orm.attributes import set_committed_value
 from starlette.requests import Request
 
-from database.models.user import user_favorites, CommentModel
-from schemas.social import CommentsListSchema, CommentReadSchema
+from core.settings import settings
+from database.models.user import user_favorites, CommentModel, UserModel, \
+    UserProfileModel
+from schemas.social import (
+    CommentsListSchema,
+    CommentReadSchema,
+    ReplyCreateSchema
+)
 from services.movies import generate_page_link
+from tasks.email_tasks import send_email
+
+
+BASE_URL = settings.BASE_URL + "/movies"
 
 
 class SocialService:
@@ -36,14 +50,81 @@ class SocialService:
             content: str
     ):
         new_comment = CommentModel(
-            user_id=user_id, movie_id=movie_id, content=content
+            user_id=user_id, movie_id=movie_id, content=content, replies=[]
         )
         db.add(new_comment)
         await db.flush()
         return new_comment
 
+    @staticmethod
+    async def create_reply(
+            db: AsyncSession,
+            movie_id: int,
+            user: UserModel,
+            reply_data: ReplyCreateSchema
+    ) -> CommentModel:
+        parent_stmt = (
+            select(CommentModel)
+            .options(
+                joinedload(CommentModel.user).joinedload(UserModel.profile),
+                joinedload(CommentModel.movie)
+            )
+            .where(
+                CommentModel.id == reply_data.parent_id,
+                CommentModel.movie_id == movie_id
+            )
+        )
+        parent_result = await db.execute(parent_stmt)
+        parent_comment = parent_result.scalar_one_or_none()
 
-class CommentService:
+        if not parent_comment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Parent comment not found for this movie."
+            )
+
+        new_reply = CommentModel(
+            content=reply_data.content,
+            user_id=user.id,
+            movie_id=movie_id,
+            parent_id=reply_data.parent_id,
+            replies=[]
+        )
+
+        db.add(new_reply)
+        await db.commit()
+
+        refresh_stmt = (
+            select(CommentModel)
+            .options(
+                joinedload(CommentModel.user).joinedload(UserModel.profile))
+            .where(CommentModel.id == new_reply.id)
+        )
+        new_reply_loaded = (await db.execute(refresh_stmt)).scalar_one()
+
+        def get_full_name(user_obj):
+            profile = user_obj.profile
+            first = profile.first_name or ""
+            last = profile.last_name or ""
+            return f"{first} {last}".strip() or "A user"
+
+        body_data = {
+            "user_name": get_full_name(parent_comment.user),
+            "replier_name": get_full_name(user),
+            "movie_name": parent_comment.movie.name,
+            "message": f"{new_reply.content[:25]}..." if len(
+                new_reply.content) > 25 else new_reply.content,
+            "comment_url": f"{BASE_URL}/{movie_id}/comments/{reply_data.parent_id}"
+        }
+
+        send_email.delay(
+            email=parent_comment.user.email,
+            body_data=body_data,
+            msg_type="reply",
+        )
+
+        return new_reply_loaded
+
     @staticmethod
     async def get_movie_comments(
             db: AsyncSession,
@@ -56,8 +137,15 @@ class CommentService:
 
         stmt = (
             select(CommentModel)
-            .where(CommentModel.movie_id == movie_id)
-            .options(selectinload(CommentModel.user))
+            .where(
+                CommentModel.movie_id == movie_id,
+                CommentModel.parent_id == None
+            )
+            .options(
+                selectinload(CommentModel.user).selectinload(
+                    UserModel.profile),
+                selectinload(CommentModel.replies)
+            )
             .order_by(CommentModel.created_at.desc())
         )
 
@@ -71,6 +159,10 @@ class CommentService:
 
         result = await db.execute(stmt.offset(offset).limit(per_page))
         comments_objs = result.scalars().all()
+
+        for comment in comments_objs:
+            for reply in comment.replies:
+                set_committed_value(reply, "replies", [])
 
         comments_list = [
             CommentReadSchema.model_validate(comment)
@@ -88,3 +180,28 @@ class CommentService:
                 request=request, page_number=page + 1, per_page=per_page
             ) if page < total_pages and request else None,
         )
+
+    @staticmethod
+    async def get_comment_replies(
+            db: AsyncSession,
+            comment_id: int,
+            page: int = 1,
+            per_page: int = 10
+    ) -> List[CommentReadSchema]:
+        offset = (page - 1) * per_page
+
+        stmt = (
+            select(CommentModel)
+            .where(CommentModel.parent_id == comment_id)
+            .options(
+                selectinload(CommentModel.user))
+            .order_by(
+                CommentModel.created_at.asc())
+            .offset(offset)
+            .limit(per_page)
+        )
+
+        result = await db.execute(stmt)
+        replies_objs = result.scalars().all()
+
+        return [CommentReadSchema.model_validate(r) for r in replies_objs]

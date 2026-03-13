@@ -15,7 +15,7 @@ from sqlalchemy import (
     Column,
     func
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 
 from database.models.base import Base
 
@@ -246,14 +246,21 @@ class CommentModel(Base):
     movie_id: Mapped[int] = mapped_column(
         ForeignKey("movies.id", ondelete="CASCADE"), nullable=False
     )
+    parent_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
+    )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(UTC)
+        DateTime, default=func.now(), server_default=func.now()
     )
-
     user: Mapped["UserModel"] = relationship(
         "UserModel", back_populates="comments"
     )
     movie: Mapped["MoviesModel"] = relationship(
         "MoviesModel", back_populates="comments"
+    )
+    replies: Mapped[List["CommentModel"]] = relationship(
+        "CommentModel",
+        backref=backref("parent", remote_side=[id]),
+        cascade="all, delete-orphan"
     )

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from database.models.user import UserModel, UserGroupEnum
+from database.models.user import UserModel, UserGroupEnum, UserProfileModel
 from database.session_postgresql import get_db
 from utils.tokens import decode_access_token
 
@@ -58,6 +58,23 @@ async def get_user_by_email(
 ) -> UserModel:
     stmt = select(UserModel).where(UserModel.email == email)
     return await db.scalar(stmt)
+
+
+async def get_current_user_with_profile(
+        user: UserModel = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db)
+):
+    profile = await db.scalar(
+        select(UserProfileModel).where(UserProfileModel.user_id == user.id)
+    )
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Profile required to perform this action."
+        )
+    user.profile = profile
+    return user
+
 
 class RoleChecker:
     def __init__(self, allowed_roles: List[UserGroupEnum]):
