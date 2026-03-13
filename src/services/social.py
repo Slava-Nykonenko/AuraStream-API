@@ -8,12 +8,19 @@ from sqlalchemy.orm.attributes import set_committed_value
 from starlette.requests import Request
 
 from core.settings import settings
-from database.models.user import user_favorites, CommentModel, UserModel, \
+from database.models.user import (
+    user_favorites,
+    CommentModel,
+    UserModel,
     UserProfileModel
+)
 from schemas.social import (
     CommentsListSchema,
     CommentReadSchema,
-    ReplyCreateSchema
+    ReplyCreateSchema,
+    UserProfileCreateSchema,
+    UserProfileListItemSchema,
+    UserProfilesListSchema
 )
 from services.movies import generate_page_link
 from tasks.email_tasks import send_email
@@ -205,3 +212,71 @@ class SocialService:
         replies_objs = result.scalars().all()
 
         return [CommentReadSchema.model_validate(r) for r in replies_objs]
+
+    @staticmethod
+    async def list_profiles(
+            request: Request,
+            db: AsyncSession,
+            page: int,
+            per_page: int,
+    ):
+        offset = (page - 1) * per_page
+        stmt = select(UserProfileModel)
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total_items = (await db.execute(count_stmt)).scalar() or 0
+
+        total_pages = (total_items + per_page - 1) // per_page
+        prev_page = await generate_page_link(
+            request, page - 1, per_page
+        ) if page > 1 else None
+        next_page = await generate_page_link(
+            request, page + 1, per_page
+        ) if page < total_pages else None
+        result = await db.execute(stmt.offset(offset).limit(per_page))
+        profiles = result.scalars().all()
+
+        return UserProfilesListSchema(
+            items=[UserProfileListItemSchema.model_validate(p) for p in
+                   profiles],
+            total_items=total_items,
+            total_pages=total_pages,
+            prev_page=prev_page,
+            next_page=next_page
+        )
+
+
+    @staticmethod
+    async def profile_retrieve(
+            profile_id: int,
+            db: AsyncSession,
+    ):
+        return await db.scalar(
+            select(UserProfileModel).where(UserProfileModel.id == profile_id)
+        )
+
+    @staticmethod
+    async def create_user_profile(
+            db: AsyncSession,
+            user: UserModel,
+            profile_data: UserProfileCreateSchema
+    ) -> UserProfileModel:
+        existing_profile = await db.scalar(
+            select(UserProfileModel).where(UserProfileModel.user_id == user.id)
+        )
+
+        if existing_profile:
+            raise HTTPException(
+                status_code=400,
+                detail="You already have a profile."
+            )
+
+        data = profile_data.model_dump(exclude={"user_id"})
+        new_profile = UserProfileModel(
+            user_id=user.id,
+            **data
+        )
+
+        db.add(new_profile)
+        await db.commit()
+        await db.refresh(new_profile)
+        return new_profile

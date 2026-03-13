@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 
 from database.models.user import UserGroupEnum
+from schemas.social import UserProfileReadSchema
 
 
 class UserBase(BaseModel):
@@ -45,17 +46,6 @@ class ChangePasswordSchema(PasswordBaseMixin, BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserProfileRead(BaseModel):
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    avatar: Optional[str] = None
-    gender: Optional[str] = None
-    date_of_birth: Optional[date] = None
-    info: Optional[str] = None
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class TokenPairResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -80,7 +70,7 @@ class UserRead(UserBase):
     group_id: int
     created_at: datetime
 
-    profile: Optional[UserProfileRead] = None
+    profile: Optional[UserProfileReadSchema] = None
 
     model_config = ConfigDict(from_attributes=True)
 
