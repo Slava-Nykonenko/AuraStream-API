@@ -45,6 +45,13 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_optional(
+        db: AsyncSession = Depends(get_db),
+        token: str | None = None
+):
+    return await get_current_user(token, db) if token else None
+
+
 async def get_user_by_email(
         email: str,
         db: AsyncSession

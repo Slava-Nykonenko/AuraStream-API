@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime, date
+from datetime import datetime, date, UTC
 from typing import List, Optional
 
 from sqlalchemy import (
@@ -18,7 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database.models.base import Base
-from database.models.movies import MoviesModel
+
 
 user_favorites = Table(
     "user_favorites",
@@ -41,6 +41,24 @@ user_favorites = Table(
         default=func.now(),
         server_default=func.now()
     )
+)
+
+movie_likes = Table(
+    "movie_likes",
+    Base.metadata,
+    Column(
+        "user_id",
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True
+    ),
+    Column(
+        "movie_id",
+        Integer,
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        primary_key=True
+    ),
+    Column("created_at", DateTime, default=func.now())
 )
 
 
@@ -113,6 +131,15 @@ class UserModel(Base):
         "MoviesModel",
         secondary=user_favorites,
         backref="favorited_by"
+    )
+    liked_movies: Mapped[List["MoviesModel"]] = relationship(
+        "MoviesModel",
+        secondary=movie_likes,
+        backref="liked_by"
+    )
+    comments: Mapped[List["CommentModel"]] = relationship(
+        "CommentModel",
+        back_populates="user"
     )
 
     activation_tokens: Mapped[List["ActivationTokenModel"]] = relationship(
@@ -206,4 +233,27 @@ class PasswordResetTokenModel(TokenModelMixin, Base):
     )
     user: Mapped["UserModel"] = relationship(
         "UserModel", back_populates="password_reset_tokens"
+    )
+
+
+class CommentModel(Base):
+    __tablename__ = "comments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    movie_id: Mapped[int] = mapped_column(
+        ForeignKey("movies.id", ondelete="CASCADE"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC)
+    )
+
+    user: Mapped["UserModel"] = relationship(
+        "UserModel", back_populates="comments"
+    )
+    movie: Mapped["MoviesModel"] = relationship(
+        "MoviesModel", back_populates="comments"
     )

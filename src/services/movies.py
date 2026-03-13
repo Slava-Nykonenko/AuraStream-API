@@ -14,6 +14,7 @@ from database.models.movies import (
     DirectorModel,
     GenreModel
 )
+from database.models.user import movie_likes, user_favorites, CommentModel
 from schemas.movies import (
     MovieCreateRequestSchema,
     MovieUpdateRequestSchema,
@@ -22,13 +23,17 @@ from schemas.movies import (
 )
 
 
-async def generate_page_link(request: Request, page_number: int,
-                             per_page: int):
+async def generate_page_link(
+        request: Request,
+        page_number: int,
+        per_page: int
+):
     params = dict(request.query_params)
     params["page"] = page_number
     params["per_page"] = per_page
 
     from urllib.parse import urlencode
+    print(f"{request.url.path}?{urlencode(params)}")
     return f"{request.url.path}?{urlencode(params)}"
 
 
@@ -39,11 +44,15 @@ class MovieService:
             filters: dict,
             page: int,
             per_page: int,
-            sort_by: str
+            sort_by: str,
+            user_id: int
     ):
         offset = (page - 1) * per_page
         stmt = select(MoviesModel)
-
+        if filters.get("only_favorites") and user_id:
+            stmt = stmt.join(
+                user_favorites, user_favorites.c.movie_id == MoviesModel.id
+            ).where(user_favorites.c.user_id == user_id)
         if filters.get("star"):
             stmt = stmt.join(MoviesModel.stars).where(
                 StarsModel.name.ilike(f"%{filters['star']}%"))
@@ -96,19 +105,41 @@ class MovieService:
         return result.scalars().all(), total_items
 
     @staticmethod
-    async def get_movie_by_id(movie_id: int, db: AsyncSession) -> MoviesModel:
+    async def get_movie_by_id(
+            movie_id: int,
+            db: AsyncSession,
+            user_id: int | None = None
+    ) -> MoviesModel:
         stmt_movie = (
             select(MoviesModel)
             .options(
                 selectinload(MoviesModel.certification),
                 selectinload(MoviesModel.genres),
                 selectinload(MoviesModel.stars),
-                selectinload(MoviesModel.directors)
+                selectinload(MoviesModel.directors),
+                selectinload(MoviesModel.comments)
             )
             .where(MoviesModel.id == movie_id)
         )
         result = await db.execute(stmt_movie)
-        return result.scalar()
+        movie = result.scalar_one_or_none()
+
+        if user_id:
+            like_check = await db.execute(
+                select(movie_likes).where(
+                    movie_likes.c.movie_id == movie_id,
+                    movie_likes.c.user_id == user_id
+                )
+            )
+            movie.is_liked_by_user = like_check.first() is not None
+            in_favorites = await db.execute(
+                select(user_favorites).where(
+                    user_favorites.c.movie_id == movie_id,
+                    user_favorites.c.user_id == user_id
+                )
+            )
+            movie.is_favorited_by_user = in_favorites.first() is not None
+        return movie
 
     @staticmethod
     def generate_page_link(request: Request, page_number: int, per_page: int):
@@ -297,7 +328,7 @@ class MovieService:
             genres_list.append(GenresReadSchema.model_validate(genre_obj))
 
         response = GenresListSchema(
-            genres=genres_list,
+            items=genres_list,
             prev_page=generate_page_link(
                 request=request, page_number=page - 1, per_page=per_page
             ) if page > 1 else None,

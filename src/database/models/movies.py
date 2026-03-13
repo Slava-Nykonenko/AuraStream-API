@@ -8,12 +8,12 @@ from sqlalchemy import (
     DECIMAL,
     ForeignKey,
     Table,
-    Column
+    Column, select, func
 )
-from sqlalchemy.orm import mapped_column, Mapped, relationship
+from sqlalchemy.orm import mapped_column, Mapped, relationship, column_property
 
 from database.models.base import Base
-
+from database.models.user import movie_likes, UserModel
 
 MoviesStarsModel = Table(
     "movies_stars",
@@ -124,6 +124,22 @@ class MoviesModel(Base):
         secondary=MoviesGenresModel,
         back_populates="movies"
     )
+
+    likes: Mapped[list["UserModel"]] = relationship(
+        "UserModel",
+        secondary=movie_likes,
+        back_populates="liked_movies",
+        viewonly=True
+    )
+
+    likes_count: Mapped[int] = column_property(
+        select(func.count(movie_likes.c.user_id))
+        .where(movie_likes.c.movie_id == id)
+        .correlate_except(movie_likes)
+        .scalar_subquery()
+    )
+
+    comments = relationship("CommentModel", back_populates="movie")
 
 
 class StarsModel(NameIdMixin, Base):

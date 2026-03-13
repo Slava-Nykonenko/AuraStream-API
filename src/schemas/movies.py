@@ -2,14 +2,10 @@ from decimal import Decimal
 from typing import List, Optional
 from urllib.parse import quote
 
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import BaseModel, ConfigDict, computed_field, Field
 
-
-class PaginatedResponseMixin(BaseModel):
-    prev_page: Optional[str] = None
-    next_page: Optional[str] = None
-    total_pages: int
-    total_items: int
+from schemas.base import PaginatedResponse
+from schemas.social import CommentsListSchema
 
 
 class CertificationsSchema(BaseModel):
@@ -45,8 +41,8 @@ class GenresReadSchema(GenresListItemSchema):
         return f"/movie_theater/movies?genre={safe_name}"
 
 
-class GenresListSchema(PaginatedResponseMixin):
-    genres: List[GenresReadSchema]
+class GenresListSchema(PaginatedResponse[GenresReadSchema]):
+    pass
 
 
 class StarsSchema(BaseModel):
@@ -83,13 +79,11 @@ class MovieListItemSchema(MovieBaseSchema):
     model_config = ConfigDict(from_attributes=True)
 
 
-class MovieListResponseSchema(PaginatedResponseMixin):
-    movies: List[MovieListItemSchema]
-
+class MovieListResponseSchema(PaginatedResponse[MovieListItemSchema]):
     model_config = ConfigDict(from_attributes=True)
 
 
-class MovieReadSchema(MovieBaseSchema):
+class MovieDetailBase(MovieBaseSchema):
     id: int
     votes: int
     meta_score: float
@@ -99,8 +93,15 @@ class MovieReadSchema(MovieBaseSchema):
     stars: List[StarsReadSchema]
     directors: List[DirectorsReadSchema]
     genres: List[GenresListItemSchema]
+    likes_count: int = 0
+    is_liked_by_user: bool = False
+    is_favorited_by_user: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class MovieReadSchema(MovieDetailBase):
+    comments: CommentsListSchema
 
 
 class MovieCreateRequestSchema(MovieBaseSchema):
@@ -132,10 +133,6 @@ class MovieUpdateRequestSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
-
-
 class MovieFilterParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -163,3 +160,4 @@ class MovieFilterParams(BaseModel):
     min_rating: Optional[float] = Field(None, ge=0, le=10)
     min_price: Optional[float] = Field(None, ge=0)
     max_price: Optional[float] = Field(None, ge=0)
+    only_favorites: bool = False
