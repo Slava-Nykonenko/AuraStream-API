@@ -4,23 +4,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.dependencies import (
     RoleChecker,
     get_current_user,
-    get_current_user_optional, get_current_user_with_profile
+    get_current_user_optional,
+    get_current_user_with_profile
 )
 from database.models.user import UserGroupEnum, UserModel
 from database.session_postgresql import get_db
 from schemas.movies import (
     MovieListResponseSchema,
-    MovieListItemSchema,
     MovieReadSchema,
     MovieCreateRequestSchema,
     MovieUpdateRequestSchema,
     GenresListSchema,
-    MovieFilterParams, MovieDetailBase, MovieRatingResponseSchema,
+    MovieFilterParams,
+    MovieDetailBase,
+    MovieRatingResponseSchema,
     MovieRatingPayloadSchema,
 )
-from schemas.social import SocialActionResponseSchema, CommentReadSchema, \
-    CommentCreateSchema, CommentsListSchema, ReplyCreateSchema
-from services.movies import MovieService, generate_page_link
+from schemas.social import (
+    SocialActionResponseSchema,
+    CommentReadSchema,
+    CommentCreateSchema,
+    ReplyCreateSchema
+)
+from services.movies import MovieService
 from services.social import SocialService
 
 router = APIRouter(prefix="/movie_theater", tags=["movies"])
@@ -46,7 +52,8 @@ async def get_movies(
         )
     service = MovieService()
     filters = params.model_dump(exclude={"page", "per_page", "sort_by"})
-    movies, total_items = await service.get_movies(
+    result = await service.get_movies(
+        request=request,
         db=db,
         filters=filters,
         page=params.page,
@@ -54,20 +61,8 @@ async def get_movies(
         sort_by=params.sort_by,
         user_id=current_user.id,
     )
-    total_pages = (total_items + params.per_page - 1) // params.per_page
-    prev_page = await generate_page_link(
-            request, params.page - 1, params.per_page
-        ) if params.page > 1 else None
-    next_page = await generate_page_link(
-            request, params.page + 1, params.per_page
-        ) if params.page < total_pages else None
-    return MovieListResponseSchema(
-        items=[MovieListItemSchema.model_validate(m) for m in movies],
-        total_pages=total_pages,
-        total_items=total_items,
-        prev_page=prev_page,
-        next_page=next_page
-    )
+
+    return result
 
 
 @router.get("/movies/{movie_id}", response_model=MovieReadSchema)
@@ -183,7 +178,7 @@ async def post_comment(
 ):
     service = SocialService()
     comment = await service.add_comment(
-        db, current_user, movie_id, payload.content
+        db, current_user.id, movie_id, payload.content
     )
     await db.commit()
     return comment

@@ -1,7 +1,7 @@
 from typing import List
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, delete, func
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.orm.attributes import set_committed_value
@@ -22,9 +22,8 @@ from schemas.social import (
     UserProfileListItemSchema,
     UserProfilesListSchema
 )
-from services.movies import generate_page_link
 from tasks.email_tasks import send_email
-
+from utils.service_helpers import pagination_helper
 
 BASE_URL = settings.BASE_URL + "/movies"
 
@@ -140,8 +139,6 @@ class SocialService:
             per_page: int,
             request: Request = None
     ) -> CommentsListSchema:
-        offset = (page - 1) * per_page
-
         stmt = (
             select(CommentModel)
             .where(
@@ -156,62 +153,47 @@ class SocialService:
             .order_by(CommentModel.created_at.desc())
         )
 
-        count_stmt = (
-            select(func.count())
-            .select_from(CommentModel)
-            .where(CommentModel.movie_id == movie_id)
+        result = await pagination_helper(
+            request=request, page=page, per_page=per_page, db=db, stmt=stmt
         )
-        total_items = (await db.execute(count_stmt)).scalar() or 0
-        total_pages = (total_items + per_page - 1) // per_page
 
-        result = await db.execute(stmt.offset(offset).limit(per_page))
-        comments_objs = result.scalars().all()
-
-        for comment in comments_objs:
+        for comment in result["items"]:
             for reply in comment.replies:
                 set_committed_value(reply, "replies", [])
 
         comments_list = [
             CommentReadSchema.model_validate(comment)
-            for comment in comments_objs
+            for comment in result["items"]
         ]
 
         return CommentsListSchema(
             items=comments_list,
-            total_items=total_items,
-            total_pages=total_pages,
-            prev_page=await generate_page_link(
-                request=request, page_number=page - 1, per_page=per_page
-            ) if page > 1 and request else None,
-            next_page=await generate_page_link(
-                request=request, page_number=page + 1, per_page=per_page
-            ) if page < total_pages and request else None,
+            total_items=result["total_items"],
+            total_pages=result["total_pages"],
+            prev_page=result["prev_page"],
+            next_page=result["next_page"],
         )
 
     @staticmethod
     async def get_comment_replies(
+            request: Request,
             db: AsyncSession,
             comment_id: int,
             page: int = 1,
             per_page: int = 10
     ) -> List[CommentReadSchema]:
-        offset = (page - 1) * per_page
-
         stmt = (
             select(CommentModel)
             .where(CommentModel.parent_id == comment_id)
             .options(
                 selectinload(CommentModel.user))
             .order_by(
-                CommentModel.created_at.asc())
-            .offset(offset)
-            .limit(per_page)
+                CommentModel.created_at.desc())
         )
-
-        result = await db.execute(stmt)
-        replies_objs = result.scalars().all()
-
-        return [CommentReadSchema.model_validate(r) for r in replies_objs]
+        result = await pagination_helper(
+            request=request, page=page, per_page=per_page, db=db, stmt=stmt
+        )
+        return [CommentReadSchema.model_validate(r) for r in result["items"]]
 
     @staticmethod
     async def list_profiles(
@@ -220,28 +202,18 @@ class SocialService:
             page: int,
             per_page: int,
     ):
-        offset = (page - 1) * per_page
-        stmt = select(UserProfileModel)
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        total_items = (await db.execute(count_stmt)).scalar() or 0
-
-        total_pages = (total_items + per_page - 1) // per_page
-        prev_page = await generate_page_link(
-            request, page - 1, per_page
-        ) if page > 1 else None
-        next_page = await generate_page_link(
-            request, page + 1, per_page
-        ) if page < total_pages else None
-        result = await db.execute(stmt.offset(offset).limit(per_page))
-        profiles = result.scalars().all()
+        stmt = select(UserProfileModel).order_by(UserProfileModel.id.asc())
+        result = await pagination_helper(
+            request=request, db=db, stmt=stmt, page=page, per_page=per_page
+        )
 
         return UserProfilesListSchema(
             items=[UserProfileListItemSchema.model_validate(p) for p in
-                   profiles],
-            total_items=total_items,
-            total_pages=total_pages,
-            prev_page=prev_page,
-            next_page=next_page
+                   result["items"]],
+            total_items=result["total_items"],
+            total_pages=result["total_pages"],
+            prev_page=result["prev_page"],
+            next_page=result["next_page"]
         )
 
 
