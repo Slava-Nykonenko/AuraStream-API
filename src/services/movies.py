@@ -12,9 +12,10 @@ from database.models.movies import (
     CertificationsModel,
     StarsModel,
     DirectorModel,
-    GenreModel
+    GenreModel,
+    RatingModel
 )
-from database.models.user import movie_likes, user_favorites, CommentModel
+from database.models.user import movie_likes, user_favorites
 from schemas.movies import (
     MovieCreateRequestSchema,
     MovieUpdateRequestSchema,
@@ -209,8 +210,9 @@ class MovieService:
 
         genres = await self.entities_helper(movie_data.genres, GenreModel, db)
         stars = await self.entities_helper(movie_data.stars, StarsModel, db)
-        directors = await self.entities_helper(movie_data.directors,
-                                               DirectorModel, db)
+        directors = await self.entities_helper(
+            movie_data.directors, DirectorModel, db
+        )
         new_movie = MoviesModel(
             name=movie_data.name,
             uuid=uuid.uuid4(),
@@ -340,3 +342,43 @@ class MovieService:
             total_items=total_items,
         )
         return response
+
+    @staticmethod
+    async def rate_movie(
+            db: AsyncSession,
+            movie_id: int,
+            user_id: int,
+            score: int
+    ):
+        stmt = select(RatingModel).where(
+            RatingModel.movie_id == movie_id,
+            RatingModel.user_id == user_id
+        )
+        existing_rating = await db.scalar(stmt)
+
+        if existing_rating:
+            existing_rating.score = score
+        else:
+            new_rating = RatingModel(
+                movie_id=movie_id,
+                user_id=user_id,
+                score=score
+            )
+            db.add(new_rating)
+
+        await db.commit()
+
+        stats_stmt = select(
+            func.avg(RatingModel.score).label("average"),
+            func.count(RatingModel.id).label("count")
+        ).where(RatingModel.movie_id == movie_id)
+
+        stats = await db.execute(stats_stmt)
+        result = stats.one()
+
+        return {
+            "movie_id": movie_id,
+            "user_score": score,
+            "new_average": round(float(result.average), 1),
+            "total_ratings": result.count
+        }

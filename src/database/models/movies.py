@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -8,7 +9,12 @@ from sqlalchemy import (
     DECIMAL,
     ForeignKey,
     Table,
-    Column, select, func
+    Column,
+    select,
+    func,
+    UniqueConstraint,
+    CheckConstraint,
+    DateTime
 )
 from sqlalchemy.orm import mapped_column, Mapped, relationship, column_property
 
@@ -32,7 +38,6 @@ MoviesStarsModel = Table(
     )
 )
 
-
 MoviesGenresModel = Table(
     "movies_genres",
     Base.metadata,
@@ -49,7 +54,6 @@ MoviesGenresModel = Table(
         nullable=False
     )
 )
-
 
 MoviesDirectorModel = Table(
     "movie_directors",
@@ -103,12 +107,12 @@ class MoviesModel(Base):
     certification_id: Mapped[int] = mapped_column(
         ForeignKey("certifications.id", ondelete="CASCADE"),
         nullable=False
-        )
+    )
 
     certification: Mapped[CertificationsModel] = relationship(
         CertificationsModel,
         back_populates="movies"
-        )
+    )
     stars: Mapped[list["StarsModel"]] = relationship(
         "StarsModel",
         secondary=MoviesStarsModel,
@@ -179,3 +183,44 @@ class DirectorModel(NameIdMixin, Base):
 
     def __repr__(self):
         return f"<Director (name: {self.name})>"
+
+
+class RatingModel(Base):
+    __tablename__ = "ratings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False
+    )
+    movie_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("movies.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["UserModel"] = relationship(
+        "UserModel", back_populates="ratings"
+    )
+    movie: Mapped["MoviesModel"] = relationship(
+        "MoviesModel", back_populates="ratings"
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "movie_id",
+            name="unique_user_movie_rating"
+        ),
+        CheckConstraint(
+            "score >= 0 AND score <= 10",
+            name="check_score_range"
+        ),
+    )

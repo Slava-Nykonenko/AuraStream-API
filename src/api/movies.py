@@ -15,7 +15,8 @@ from schemas.movies import (
     MovieCreateRequestSchema,
     MovieUpdateRequestSchema,
     GenresListSchema,
-    MovieFilterParams, MovieDetailBase,
+    MovieFilterParams, MovieDetailBase, MovieRatingResponseSchema,
+    MovieRatingPayloadSchema,
 )
 from schemas.social import SocialActionResponseSchema, CommentReadSchema, \
     CommentCreateSchema, CommentsListSchema, ReplyCreateSchema
@@ -203,4 +204,22 @@ async def create_comment_reply(
         movie_id=movie_id,
         user=user,
         reply_data=reply_data
+    )
+
+
+@router.post(
+    "/movies/{movie_id}/rate",
+    response_model=MovieRatingResponseSchema
+)
+async def rate_movie(
+    movie_id: int,
+    payload: MovieRatingPayloadSchema,
+    db: AsyncSession = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user_with_profile)
+):
+    return await MovieService.rate_movie(
+        db=db,
+        movie_id=movie_id,
+        user_id=current_user.id,
+        score=payload.score
     )

@@ -161,3 +161,14 @@ class MovieFilterParams(BaseModel):
     min_price: Optional[float] = Field(None, ge=0)
     max_price: Optional[float] = Field(None, ge=0)
     only_favorites: bool = False
+
+
+class MovieRatingPayloadSchema(BaseModel):
+    score: int = Field(..., ge=1, le=10)
+
+
+class MovieRatingResponseSchema(BaseModel):
+    movie_id: int
+    user_score: int
+    new_average: float
+    total_ratings: int
