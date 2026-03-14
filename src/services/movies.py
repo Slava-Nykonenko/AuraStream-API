@@ -112,6 +112,14 @@ class MovieService:
             db: AsyncSession,
             user_id: int | None = None
     ) -> MoviesModel:
+        stats_stmt = select(
+            func.avg(RatingModel.score).label("average"),
+            func.count(RatingModel.id).label("count")
+        ).where(RatingModel.movie_id == movie_id)
+
+        stats_result = await db.execute(stats_stmt)
+        stats = stats_result.one()
+
         stmt_movie = (
             select(MoviesModel)
             .options(
@@ -119,7 +127,7 @@ class MovieService:
                 selectinload(MoviesModel.genres),
                 selectinload(MoviesModel.stars),
                 selectinload(MoviesModel.directors),
-                selectinload(MoviesModel.comments)
+                selectinload(MoviesModel.comments),
             )
             .where(MoviesModel.id == movie_id)
         )
@@ -141,6 +149,8 @@ class MovieService:
                 )
             )
             movie.is_favorited_by_user = in_favorites.first() is not None
+        movie.average_rating = round(float(stats.average or 0.0), 1)
+        movie.total_ratings = stats.count
         return movie
 
     @staticmethod

@@ -158,6 +158,11 @@ class UserModel(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    ratings: Mapped[List["RatingModel"]] = relationship(
+        "RatingModel",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
 
 class UserProfileModel(Base):

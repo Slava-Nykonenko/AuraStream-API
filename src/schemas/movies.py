@@ -96,6 +96,8 @@ class MovieDetailBase(MovieBaseSchema):
     likes_count: int = 0
     is_liked_by_user: bool = False
     is_favorited_by_user: bool = False
+    average_rating: float = 0.0
+    total_ratings: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 

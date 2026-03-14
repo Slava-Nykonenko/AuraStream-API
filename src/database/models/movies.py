@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import List
 
 from sqlalchemy import (
     Integer,
@@ -141,6 +142,11 @@ class MoviesModel(Base):
         .where(movie_likes.c.movie_id == id)
         .correlate_except(movie_likes)
         .scalar_subquery()
+    )
+    ratings: Mapped[List["RatingModel"]] = relationship(
+        "RatingModel",
+        back_populates="movie",
+        cascade="all, delete-orphan"
     )
 
     comments = relationship("CommentModel", back_populates="movie")
