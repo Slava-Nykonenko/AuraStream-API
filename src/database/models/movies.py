@@ -148,7 +148,10 @@ class MoviesModel(Base):
         back_populates="movie",
         cascade="all, delete-orphan"
     )
-
+    in_carts: Mapped[List["CartItemModel"]] = relationship(
+        "CartItemModel",
+        back_populates="movie"
+    )
     comments = relationship("CommentModel", back_populates="movie")
 
 
