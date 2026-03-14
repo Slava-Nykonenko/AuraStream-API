@@ -15,32 +15,23 @@ from database.models.movies import (
     GenreModel,
     RatingModel
 )
+from database.models.order import OrderItemModel
 from database.models.user import movie_likes, user_favorites
 from schemas.movies import (
     MovieCreateRequestSchema,
     MovieUpdateRequestSchema,
     GenresListSchema,
-    GenresReadSchema
+    MovieListResponseSchema,
+    MovieListItemSchema,
+    GenresListItemSchema
 )
-
-
-async def generate_page_link(
-        request: Request,
-        page_number: int,
-        per_page: int
-):
-    params = dict(request.query_params)
-    params["page"] = page_number
-    params["per_page"] = per_page
-
-    from urllib.parse import urlencode
-    print(f"{request.url.path}?{urlencode(params)}")
-    return f"{request.url.path}?{urlencode(params)}"
+from utils.service_helpers import pagination_helper
 
 
 class MovieService:
     @staticmethod
     async def get_movies(
+            request: Request,
             db: AsyncSession,
             filters: dict,
             page: int,
@@ -48,7 +39,6 @@ class MovieService:
             sort_by: str,
             user_id: int
     ):
-        offset = (page - 1) * per_page
         stmt = select(MoviesModel)
         if filters.get("only_favorites") and user_id:
             stmt = stmt.join(
@@ -82,9 +72,6 @@ class MovieService:
         if filters.get("max_price"):
             stmt = stmt.where(MoviesModel.price <= filters["max_price"])
 
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        total_items = (await db.execute(count_stmt)).scalar() or 0
-
         sort_options = {
             "newest": desc(MoviesModel.year),
             "oldest": asc(MoviesModel.year),
@@ -101,10 +88,21 @@ class MovieService:
             selectinload(MoviesModel.certification),
             selectinload(MoviesModel.genres),
             selectinload(MoviesModel.directors)
-        ).offset(offset).limit(per_page)
+        )
 
-        result = await db.execute(stmt)
-        return result.scalars().all(), total_items
+        result = await pagination_helper(
+            request=request, db=db, stmt=stmt, page=page, per_page=per_page
+        )
+        return MovieListResponseSchema(
+            items=[
+                MovieListItemSchema.model_validate(movie)
+                for movie in result["items"]
+            ],
+            total_items=result["total_items"],
+            total_pages=result["total_pages"],
+            prev_page=result["prev_page"],
+            next_page=result["next_page"],
+        )
 
     @staticmethod
     async def get_movie_by_id(
@@ -152,15 +150,6 @@ class MovieService:
         movie.average_rating = round(float(stats.average or 0.0), 1)
         movie.total_ratings = stats.count
         return movie
-
-    @staticmethod
-    def generate_page_link(request: Request, page_number: int, per_page: int):
-        params = dict(request.query_params)
-        params["page"] = page_number
-        params["per_page"] = per_page
-
-        from urllib.parse import urlencode
-        return f"{request.url.path}?{urlencode(params)}"
 
     @staticmethod
     async def entities_helper(
@@ -304,6 +293,17 @@ class MovieService:
         return db_movie
 
     async def movie_delete(self, movie_id: int, db: AsyncSession):
+        ownership_stmt = select(func.count()).select_from(
+            OrderItemModel).where(
+            OrderItemModel.movie_id == movie_id
+        )
+        result = await db.execute(ownership_stmt)
+        if result.scalar() > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete movie: it has been purchased by users."
+            )
+
         db_movie = await self.get_movie_by_id(movie_id=movie_id, db=db)
         if not db_movie:
             return None
@@ -320,7 +320,6 @@ class MovieService:
             per_page: int,
             name: str | None
     ):
-        offset = (page - 1) * per_page
         stmt = (
             select(GenreModel,
                    func.count(MoviesModel.id).label("total_movies"))
@@ -330,28 +329,19 @@ class MovieService:
         if name:
             stmt = stmt.where(GenreModel.name.ilike(f"%{name}%"))
 
-        count_stmt = select(func.count()).select_from(stmt.subquery())
-        total_items = (await db.execute(count_stmt)).scalar() or 0
-        total_pages = (total_items + per_page - 1) // per_page
-
-        result = await db.execute(stmt.offset(offset).limit(per_page))
-        genres_list = []
-        for genre_obj, count in result.all():
-            genre_obj.total_movies = count
-            genres_list.append(GenresReadSchema.model_validate(genre_obj))
-
-        response = GenresListSchema(
-            items=genres_list,
-            prev_page=generate_page_link(
-                request=request, page_number=page - 1, per_page=per_page
-            ) if page > 1 else None,
-            next_page=generate_page_link(
-                request=request, page_number=page + 1, per_page=per_page
-            ) if page < total_pages else None,
-            total_pages=total_pages,
-            total_items=total_items,
+        result = await pagination_helper(
+            request=request, page=page, per_page=per_page, db=db, stmt=stmt
         )
-        return response
+        return GenresListSchema(
+            items=[
+                GenresListItemSchema.model_validate(genre)
+                for genre in result["items"]
+            ],
+            prev_page=result["prev_page"],
+            next_page=result["next_page"],
+            total_pages=result["total_pages"],
+            total_items=result["total_items"],
+        )
 
     @staticmethod
     async def rate_movie(

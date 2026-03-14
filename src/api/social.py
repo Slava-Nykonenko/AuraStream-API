@@ -7,7 +7,6 @@ from database.models.user import UserModel
 from database.session_postgresql import get_db
 from schemas.social import (
     UserProfilesListSchema,
-    UserProfileListItemSchema,
     UserProfileReadSchema,
     UserProfileCreateSchema
 )
