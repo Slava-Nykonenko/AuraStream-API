@@ -5,7 +5,7 @@ from fastapi import (
     status
 )
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy import select, delete
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_current_user, get_user_by_email
@@ -20,7 +20,9 @@ from schemas.user import (
     RefreshTokenRequest,
     LoginSchema,
     MessageSchema,
-    PasswordResetCompleteSchema, UserBase, ChangePasswordSchema
+    PasswordResetCompleteSchema,
+    UserBase,
+    ChangePasswordSchema
 )
 from services.auth_user import AuthServices
 
