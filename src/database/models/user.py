@@ -172,6 +172,10 @@ class UserModel(Base):
     orders: Mapped["OrderModel"] = relationship(
         "OrderModel", back_populates="user"
     )
+    payments: Mapped["PaymentsModel"] = relationship(
+        "PaymentsModel",
+        back_populates="user"
+    )
 
 
 class UserProfileModel(Base):

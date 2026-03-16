@@ -3,6 +3,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from typing import List
 from database.models.base import Base
+from database.models.payments import PaymentItems
 
 
 class OrderModel(Base):
@@ -31,6 +32,10 @@ class OrderModel(Base):
         back_populates="order",
         cascade="all, delete-orphan"
     )
+    payments: Mapped[List["PaymentModel"]] = relationship(
+        "PaymentsModel",
+        back_populates="order"
+    )
 
 
 class OrderItemModel(Base):
@@ -54,3 +59,7 @@ class OrderItemModel(Base):
         "OrderModel", back_populates="items"
     )
     movie: Mapped["MoviesModel"] = relationship("MoviesModel")
+    payment_items: Mapped[List["PaymentItems"]] = relationship(
+        "PaymentItems",
+        back_populates="order_item"
+    )
