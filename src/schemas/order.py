@@ -23,5 +23,14 @@ class OrderListSchema(PaginatedResponse[OrderListItemSchema]):
     model_config = ConfigDict(from_attributes=True)
 
 
+class OrderItemResponseSchema(BaseModel):
+    price_paid: float
+    movie: MovieListItemSchema
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class OrderDetailSchema(OrderListItemSchema):
-    items: List[MovieListItemSchema]
+    items: List[OrderItemResponseSchema]
+
+    model_config = ConfigDict(from_attributes=True)
