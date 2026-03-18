@@ -39,3 +39,14 @@ async def success(
             detail="Order not found"
         )
     return order
+
+
+@router.get("/cancel", response_model=OrderDetailSchema)
+async def cancel_payment(
+        session_id: str,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user)
+):
+    return await PaymentService.cancel_payment(
+        session_id=session_id, db=db, current_user=current_user
+    )

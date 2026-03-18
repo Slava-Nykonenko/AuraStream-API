@@ -4,7 +4,7 @@ import stripe
 from fastapi import HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 from starlette.requests import Request
 
 from core.settings import settings
@@ -82,7 +82,7 @@ class PaymentService:
                 line_items=line_items,
                 mode="payment",
                 success_url=f"{settings.BASE_URL}/payments/success?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{settings.BASE_URL}/payments/cancel",
+                cancel_url=f"{settings.BASE_URL}/payments/cancel?session_id={{CHECKOUT_SESSION_ID}}",
                 metadata={
                     "order_id": order.id,
                     "user_id": user_id
@@ -246,3 +246,30 @@ class PaymentService:
         order = result.unique().scalar_one_or_none()
 
         return order
+
+    @staticmethod
+    async def cancel_payment(
+            session_id: str,
+            db: AsyncSession,
+            current_user: UserModel
+    ):
+        payment_stmt = select(PaymentsModel).where(
+            PaymentsModel.external_payment_id == session_id,
+            PaymentsModel.user_id == current_user.id
+        )
+        payment_db = await db.scalar(payment_stmt)
+        if not payment_db:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Payment not found."
+            )
+        if payment_db.status != PaymentStatus.SUCCESSFUL:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Payment cannot be canceled."
+            )
+        payment_db.status = PaymentStatus.CANCELED
+        await db.commit()
+        return await PaymentService.get_order_by_stripe_session(
+            db=db, session_id=session_id
+        )
