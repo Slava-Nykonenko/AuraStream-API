@@ -1,0 +1,17 @@
+<html>
+    <body>
+        <h2>Thank you for your purchase, {{ user_name }}!</h2>
+        <p>We’ve received your payment of <b>€{{ amount }}</b>.</p>
+        <p>Your order is now active. You can find your movies in your library.</p>
+        <hr>
+        <h4>Order Summary:</h4>
+        <ul>
+          {% for item in items %}
+          <li>{item}</li>
+          {% endfor %}
+        </ul>
+        <a href="{{ library_url }}" style="padding: 10px; background: #28a745; color: white; text-decoration: none;">
+            Go to My Library
+        </a>
+    </body>
+</html>

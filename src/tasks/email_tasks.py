@@ -22,7 +22,8 @@ conf = ConnectionConfig(
 TEMPLATES = {
     "activation": "account_activation.html",
     "reset_pass": "reset_password.html",
-    "reset_pass_success": "reset_password_success.html"
+    "reset_pass_success": "reset_password_success.html",
+    "payment_success": "payment_success.html"
 }
 
 @celery_app.task(name="tasks.email_tasks.send_email")
@@ -30,7 +31,8 @@ def send_email(email: str, body_data: dict, msg_type: str):
     subjects = {
         "activation": "Welcome! Please activate your account",
         "reset_pass": "Reset your password",
-        "reset_pass_success": "Your password has been changed"
+        "reset_pass_success": "Your password has been changed",
+        "payment_success": f"Payment confirmed = Order # {body_data['order_id']}",
     }
     message = MessageSchema(
         subject=subjects[msg_type],
