@@ -18,10 +18,9 @@ from database.models.base import Base
 
 
 class PaymentStatus(str, enum.Enum):
-    PENDING = "pending"
-    SUCCESSFUL = "successful"
-    CANCELED = "canceled"
-    REFUNDED = "refunded"
+    SUCCESSFUL = "SUCCESSFUL"
+    CANCELED = "CANCELED"
+    REFUNDED = "REFUNDED"
 
 
 class PaymentsModel(Base):
@@ -45,7 +44,7 @@ class PaymentsModel(Base):
     )
     status: Mapped[PaymentStatus] = mapped_column(
         Enum(PaymentStatus),
-        default=PaymentStatus.PENDING,
+        default=PaymentStatus.SUCCESSFUL,
         nullable=False
     )
     amount: Mapped[Decimal] = mapped_column(
