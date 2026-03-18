@@ -1,9 +1,23 @@
-from sqlalchemy import Integer, ForeignKey, DateTime, Float, String, func
+import enum
+
+from sqlalchemy import Integer, ForeignKey, DateTime, Float, String, func, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from typing import List
 from database.models.base import Base
 from database.models.payments import PaymentItems
+
+
+class OrderStatus(enum.Enum):
+    PENDING = "PENDING"
+    PAID = "PAID"
+    PARTIALLY_PAID = "PARTIALLY_PAID"
+    CANCELED = "CANCELLED"
+
+
+class OrderItemStatus(enum.Enum):
+    PENDING = "PENDING"
+    PAID = "PAID"
 
 
 class OrderModel(Base):
@@ -17,7 +31,9 @@ class OrderModel(Base):
     )
 
     total_amount: Mapped[float] = mapped_column(Float, nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="completed")
+    status: Mapped[OrderStatus] = mapped_column(
+        Enum(OrderStatus), default=OrderStatus.PENDING, nullable=False
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -50,6 +66,11 @@ class OrderItemModel(Base):
     movie_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("movies.id", ondelete="RESTRICT"),
+        nullable=False
+    )
+    status: Mapped[OrderItemStatus] = mapped_column(
+        Enum(OrderItemStatus),
+        default=OrderItemStatus.PENDING,
         nullable=False
     )
 

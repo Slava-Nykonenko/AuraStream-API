@@ -8,4 +8,4 @@ class PaginatedResponse(BaseModel, Generic[T]):
     total_pages: int
     prev_page: Optional[str] = None
     next_page: Optional[str] = None
-    items: List[T]  # A generic name like 'items' or 'data' is standard
+    items: List[T]

@@ -153,7 +153,6 @@ class MoviesModel(Base):
         back_populates="movie"
     )
     comments = relationship("CommentModel", back_populates="movie")
-    order: Mapped["OrderModel"] = relationship("OrderModel")
 
 
 class StarsModel(NameIdMixin, Base):
