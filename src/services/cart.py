@@ -12,7 +12,11 @@ from schemas.cart import CartItemCreateSchema
 class CartService:
     @staticmethod
     async def get_or_create_cart(db: AsyncSession, user_id: int) -> CartModel:
-        stmt = select(CartModel).where(CartModel.user_id == user_id)
+        stmt = (
+            select(CartModel)
+            .where(CartModel.user_id == user_id)
+            .options(selectinload(CartModel.items))
+        )
         cart = await db.scalar(stmt)
         if not cart:
             cart = CartModel(user_id=user_id)

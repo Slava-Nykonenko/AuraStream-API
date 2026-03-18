@@ -2,6 +2,7 @@ from typing import List
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.requests import Request
 
 from core.dependencies import get_current_user
 from database.models.user import UserModel
@@ -20,12 +21,21 @@ async def place_order(
     return await OrderService.place_order(db=db, user_id=current_user.id)
 
 
-@router.get("/my_orders", response_model=List[OrderListSchema])
+@router.get("/my_orders", response_model=OrderListSchema)
 async def get_my_orders(
+        request: Request,
         db: AsyncSession = Depends(get_db),
-        current_user: UserModel = Depends(get_current_user)
+        current_user: UserModel = Depends(get_current_user),
+        page: int = 1,
+        per_page: int = 20
 ):
-    return await OrderService.get_order_history(db=db, user_id=current_user.id)
+    return await OrderService.get_order_history(
+        request=request,
+        db=db,
+        user_id=current_user.id,
+        page=page,
+        per_page=per_page
+    )
 
 
 @router.get("/my_orders/{order_id}", response_model=OrderDetailSchema)

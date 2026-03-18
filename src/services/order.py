@@ -5,7 +5,8 @@ from sqlalchemy.orm import selectinload
 from starlette.requests import Request
 
 from database.models.cart import CartModel, CartItemModel
-from database.models.order import OrderModel, OrderItemModel
+from database.models.movies import MoviesModel
+from database.models.order import OrderModel, OrderItemModel, OrderStatus
 from schemas.order import OrderListSchema, OrderListItemSchema
 from utils.service_helpers import pagination_helper
 
@@ -31,7 +32,7 @@ class OrderService:
         new_order = OrderModel(
             user_id=user_id,
             total_amount=total_amount,
-            status="completed"
+            status=OrderStatus.PENDING,
         )
         db.add(new_order)
         await db.flush()
@@ -46,10 +47,18 @@ class OrderService:
 
         await db.execute(
             delete(CartItemModel).where(CartItemModel.cart_id == cart.id))
-
         await db.commit()
-        await db.refresh(new_order)
-        return new_order
+
+        final_order_stmt = (
+            select(OrderModel)
+            .where(OrderModel.id == new_order.id)
+            .options(
+                selectinload(OrderModel.items)
+                .joinedload(OrderItemModel.movie)
+            )
+        )
+        result = await db.execute(final_order_stmt)
+        return result.scalar_one()
 
     @staticmethod
     async def get_order_history(
@@ -63,6 +72,10 @@ class OrderService:
         stmt = (
             select(OrderModel)
             .where(OrderModel.user_id == user_id)
+            .options(
+                selectinload(OrderModel.items)
+                .selectinload(OrderItemModel.movie)
+            )
             .order_by(OrderModel.created_at.desc())
         )
         result = await pagination_helper(
