@@ -146,6 +146,7 @@ async def delete_movie(
 async def get_genres(
         request: Request,
         db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user),
         page: int = Query(1, ge=1),
         per_page: int = Query(20, ge=1, le=50),
         name: str = Query(None)
@@ -157,7 +158,10 @@ async def get_genres(
     return response
 
 
-@router.post("/{movie_id}/favorite", response_model=SocialActionResponseSchema)
+@router.post(
+    "/{movie_id}/favorite",
+    response_model=SocialActionResponseSchema
+)
 async def toggle_movie_favorite(
     movie_id: int,
     db: AsyncSession = Depends(get_db),

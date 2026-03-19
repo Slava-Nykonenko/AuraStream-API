@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload
 
 from database.models.cart import CartModel, CartItemModel
 from database.models.order import OrderModel, OrderItemModel, OrderStatus
+from database.models.user import UserGroupEnum, UserModel
 from schemas.order import OrderListSchema, OrderListItemSchema
 from utils.service_helpers import pagination_helper
 
@@ -64,18 +65,18 @@ class OrderService:
             page: int,
             per_page: int,
             db: AsyncSession,
-            user_id: int
+            user: UserModel
     ):
 
-        stmt = (
-            select(OrderModel)
-            .where(OrderModel.user_id == user_id)
-            .options(
-                selectinload(OrderModel.items)
-                .selectinload(OrderItemModel.movie)
-            )
-            .order_by(OrderModel.created_at.desc())
-        )
+        stmt = select(OrderModel)
+        if user.group != UserGroupEnum.ADMIN:
+            stmt = stmt.where(OrderModel.user_id == user.id)
+
+        stmt = stmt.options(
+            selectinload(OrderModel.items)
+            .selectinload(OrderItemModel.movie)
+        ).order_by(OrderModel.created_at.desc())
+
         result = await pagination_helper(
             request=request, db=db, stmt=stmt, page=page, per_page=per_page
         )
@@ -91,13 +92,19 @@ class OrderService:
         )
 
     @staticmethod
-    async def get_order_details(db: AsyncSession, user_id: int, order_id: int):
+    async def get_order_details(db: AsyncSession, user: UserModel, order_id: int):
         stmt = (
             select(OrderModel)
-            .where(OrderModel.id == order_id, OrderModel.user_id == user_id)
-            .options(selectinload(OrderModel.items).joinedload(
-                OrderItemModel.movie))
+            .where(OrderModel.id == order_id)
+            .options(
+                selectinload(OrderModel.items).joinedload(OrderItemModel.movie)
+            )
         )
+        if user.group != UserGroupEnum.ADMIN:
+            stmt = stmt.where(
+                OrderModel.user_id == user.id
+            )
+
         order = await db.scalar(stmt)
         if not order:
             raise HTTPException(
@@ -120,6 +127,6 @@ class OrderService:
                 detail="Order not found."
             )
 
-        order.status = "cancelled"
+        order.status = OrderStatus.CANCELED
         await db.commit()
         return order

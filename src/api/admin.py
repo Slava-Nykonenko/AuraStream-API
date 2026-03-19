@@ -5,7 +5,7 @@ from api.auth import get_auth_service
 from core.dependencies import RoleChecker, get_user_by_email
 from database.models.user import UserGroupEnum, UserModel
 from database.session_postgresql import get_db
-from schemas.order import OrderListSchema
+from schemas.order import OrderListSchema, OrderDetailSchema
 from schemas.payments import (
     PaymentReadSchema,
     RefundRequestSchema,
@@ -68,6 +68,32 @@ async def admin_activate_user(
     await db.commit()
 
     return MessageSchema(message=f"User {user_db.email} activated by admin.")
+
+
+@router.get("/orders", response_model=OrderListSchema)
+async def get_orders(
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(allow_admin_only),
+        page: int = 1,
+        per_page: int = 20
+):
+    return await OrderService.get_order_history(
+        request=request,
+        db=db,
+        user=current_user,
+        page=page,
+        per_page=per_page
+    )
+
+
+@router.get("/orders/{order_id}", response_model=OrderDetailSchema)
+async def get_order_detail(
+        order_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(allow_admin_only)
+):
+    return await OrderService.get_order_details()
 
 
 @router.get("/get_payments", response_model=PaymentAdminListSchema)

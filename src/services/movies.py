@@ -6,6 +6,7 @@ from sqlalchemy import select, func, desc, asc
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from database.models.movies import (
     MoviesModel,
@@ -23,8 +24,9 @@ from schemas.movies import (
     GenresListSchema,
     MovieListResponseSchema,
     MovieListItemSchema,
-    GenresListItemSchema
+    GenresListItemSchema, MovieReadSchema, MovieDetailBase
 )
+from schemas.social import CommentsListSchema
 from utils.service_helpers import pagination_helper
 
 
@@ -233,13 +235,20 @@ class MovieService:
             await db.commit()
             await db.refresh(
                 new_movie,
-                ["certification", "stars", "directors", "genres"]
+                [
+                    "certification",
+                    "stars",
+                    "directors",
+                    "genres",
+                    "comments",
+                    "likes"
+                ]
             )
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
             await db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Something went wrong. Try again later."
+                detail=f"Something went wrong. Try again later. {e}"
             )
         return new_movie
 
@@ -283,14 +292,29 @@ class MovieService:
 
         try:
             await db.commit()
-            await db.refresh(db_movie)
+            updated_movie = await self.get_movie_by_id(
+                movie_id=movie_id, db=db
+            )
         except SQLAlchemyError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Something went wrong. Try again later."
             )
+        for comment in updated_movie.comments:
+            set_committed_value(comment, "replies", [])
+        comments_data = CommentsListSchema(
+            items=updated_movie.comments,
+            total_items=len(updated_movie.comments),
+            total_pages=1,
+            prev_page=None,
+            next_page=None
+        )
 
-        return db_movie
+        return MovieReadSchema(
+            **MovieDetailBase.model_validate(updated_movie).model_dump(),
+            comments=comments_data
+        )
+
 
     async def movie_delete(self, movie_id: int, db: AsyncSession):
         ownership_stmt = select(func.count()).select_from(
