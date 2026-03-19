@@ -1,11 +1,9 @@
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Request
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from starlette.requests import Request
 
 from database.models.cart import CartModel, CartItemModel
-from database.models.movies import MoviesModel
 from database.models.order import OrderModel, OrderItemModel, OrderStatus
 from schemas.order import OrderListSchema, OrderListItemSchema
 from utils.service_helpers import pagination_helper

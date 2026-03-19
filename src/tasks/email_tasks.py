@@ -5,7 +5,6 @@ from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 from core.celery import celery_app
 from core.settings import settings
 
-
 conf = ConnectionConfig(
     MAIL_USERNAME="",
     MAIL_PASSWORD="",
@@ -26,23 +25,32 @@ TEMPLATES = {
     "payment_success": "payment_success.html"
 }
 
+
 @celery_app.task(name="tasks.email_tasks.send_email")
 def send_email(email: str, body_data: dict, msg_type: str):
     subjects = {
         "activation": "Welcome! Please activate your account",
         "reset_pass": "Reset your password",
         "reset_pass_success": "Your password has been changed",
-        "payment_success": f"Payment confirmed = Order # {body_data['order_id']}",
+        "payment_success": "Payment confirmed = Order # {order_id}",
     }
+    subject_template = subjects.get(msg_type, "Notification")
+    if "{order_id}" in subject_template:
+        subject = subject_template.format(
+            order_id=body_data.get("order_id", "N/A"))
+    else:
+        subject = subject_template
     message = MessageSchema(
-        subject=subjects[msg_type],
+        subject=subject,
         recipients=[email],
         template_body=body_data,
         subtype=MessageType.html
     )
     fm = FastMail(conf)
     try:
-        asyncio.run(fm.send_message(message, template_name=TEMPLATES[msg_type]))
+        asyncio.run(
+            fm.send_message(message, template_name=TEMPLATES[msg_type])
+        )
         return f"Sent to {email}"
     except Exception as e:
         return f"Failed: {str(e)}"

@@ -1,13 +1,22 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.auth import get_auth_service
 from core.dependencies import RoleChecker, get_user_by_email
-from database.models.user import UserGroupEnum, UserModel, ActivationTokenModel
+from database.models.user import UserGroupEnum, UserModel
 from database.session_postgresql import get_db
+from schemas.order import OrderListSchema
+from schemas.payments import (
+    PaymentReadSchema,
+    RefundRequestSchema,
+    PaymentAdminListSchema,
+    PaymentAdminReadSchema,
+    AdminPaymentFilterSchema
+)
 from schemas.user import ChangeUserGroupSchema, MessageSchema, UserBase
 from services.auth_user import AuthServices
+from services.order import OrderService
+from services.payments import PaymentService
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -45,10 +54,13 @@ async def admin_activate_user(
         current_user: UserModel = Depends(allow_admin_only),
         auth_service: AuthServices = Depends(get_auth_service)
 ):
-    user_db = await get_user_by_email(payload.email, db=db)
+    user_db = await get_user_by_email(email=payload.email, db=db)
 
     if not user_db:
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
     if user_db.is_active:
         return MessageSchema(message="User is already active.")
 
@@ -56,3 +68,44 @@ async def admin_activate_user(
     await db.commit()
 
     return MessageSchema(message=f"User {user_db.email} activated by admin.")
+
+
+@router.get("/get_payments", response_model=PaymentAdminListSchema)
+async def get_payments_list(
+        request: Request,
+        filter_params: AdminPaymentFilterSchema,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(allow_admin_only),
+        page: int = 1,
+        per_page: int = 20,
+        sort_by: str = "newest"
+):
+    filters = filter_params.model_dump()
+    return await PaymentService.get_payments(
+            request=request,
+            db=db,
+            filter_params=filters,
+            page=page,
+            per_page=per_page,
+            sort_by=sort_by
+    )
+
+
+@router.get("/payments/{payment_id}", response_model=PaymentAdminReadSchema)
+async def get_payment(
+        payment_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(allow_admin_only)
+):
+    return await PaymentService.admin_payment_detail(
+        payment_id=payment_id, db=db
+    )
+
+
+@router.post("/refund-payment", response_model=PaymentReadSchema)
+async def refund(
+        payload: RefundRequestSchema,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(allow_admin_only)
+):
+    return await PaymentService.refund(payment_id=payload.payment_id, db=db)

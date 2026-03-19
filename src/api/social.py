@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.requests import Request
 
 from core.dependencies import get_current_user
 from database.models.user import UserModel

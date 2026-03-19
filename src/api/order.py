@@ -1,8 +1,5 @@
-from typing import List
-
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.requests import Request
 
 from core.dependencies import get_current_user
 from database.models.user import UserModel
@@ -32,7 +29,7 @@ async def get_my_orders(
     return await OrderService.get_order_history(
         request=request,
         db=db,
-        user_id=current_user.id,
+        user=current_user,
         page=page,
         per_page=per_page
     )

@@ -1,24 +1,26 @@
 from decimal import Decimal
 
 import stripe
-from fastapi import HTTPException, status
-from sqlalchemy import select, func
+from fastapi import HTTPException, status, Request
+from sqlalchemy import select, func, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
-from starlette.requests import Request
 
 from core.settings import settings
 from database.models.order import (
     OrderModel,
     OrderStatus,
     OrderItemModel,
+    OrderItemStatus,
 )
 from database.models.payments import PaymentsModel, PaymentStatus, PaymentItems
 from database.models.user import UserModel
 from schemas.payments import (
     PaymentListSchema,
     PaymentReadSchema,
-    CheckoutRequestSchema
+    CheckoutRequestSchema,
+    PaymentAdminListSchema,
+    PaymentAdminListItemSchema
 )
 from tasks.email_tasks import send_email
 from utils.service_helpers import pagination_helper
@@ -133,8 +135,38 @@ class PaymentService:
             await PaymentService._fulfill_payment(
                 db=db, session_id=session["id"]
             )
+        elif event["type"] == "charge.refunded":
+            await PaymentService.handle_refund_webhook(
+                db, event["data"]["object"]
+            )
 
         return {"status": "success"}
+
+    @staticmethod
+    async def handle_refund_webhook(
+            db: AsyncSession,
+            stripe_refund_object: dict
+    ):
+        payment_intent_id = stripe_refund_object.get("payment_intent")
+
+        stmt = (
+            select(PaymentsModel)
+            .where(PaymentsModel.external_payment_id == payment_intent_id)
+            .options(selectinload(PaymentsModel.order).selectinload(
+                OrderModel.items))
+        )
+        payment_db = await db.scalar(stmt)
+
+        if payment_db and payment_db.status != PaymentStatus.REFUNDED:
+            payment_db.status = PaymentStatus.REFUNDED
+            payment_db.order.status = OrderStatus.CANCELED
+            for item in payment_db.order.items:
+                item.status = OrderItemStatus.CANCELED
+
+            await db.commit()
+            print(
+                f"Successfully synced refund for Payment Intent: {payment_intent_id}"
+            )
 
     @staticmethod
     async def _fulfill_payment(db: AsyncSession, session_id: str):
@@ -248,28 +280,90 @@ class PaymentService:
         return order
 
     @staticmethod
-    async def cancel_payment(
-            session_id: str,
+    async def get_payments(
+            request: Request,
             db: AsyncSession,
-            current_user: UserModel
+            filter_params: dict,
+            page: int,
+            per_page: int,
+            sort_by: str
     ):
-        payment_stmt = select(PaymentsModel).where(
-            PaymentsModel.external_payment_id == session_id,
-            PaymentsModel.user_id == current_user.id
+        stmt = select(PaymentsModel)
+        if filter_params.get("user_id"):
+            stmt = stmt.where(
+                PaymentsModel.user_id == filter_params["user_id"]
+            )
+        if filter_params.get("status"):
+            stmt = stmt.where(PaymentsModel.status == filter_params["status"])
+        if filter_params.get("date_from"):
+            stmt = stmt.where(
+                PaymentsModel.created_at >= filter_params["date_from"]
+            )
+        if filter_params.ger("date_to"):
+            stmt = stmt.where(
+                PaymentsModel.created_at <= filter_params["date_to"]
+            )
+        if filter_params.get("external_payment_id"):
+            stmt = stmt.where(
+                PaymentsModel.external_payment_id == filter_params[
+                    "external_payment_id"
+                ]
+            )
+        sort_options = {
+            "newest": desc(PaymentsModel.created_at),
+            "oldest": asc(PaymentsModel.created_at),
+            "amount_asc": asc(PaymentsModel.amount),
+            "amount_desc": desc(PaymentsModel.amount),
+        }
+        stmt = stmt.order_by(sort_options.get(sort_by))
+        result = await pagination_helper(
+            request=request, db=db, stmt=stmt, page=page, per_page=per_page
         )
+        return PaymentAdminListSchema(
+            items=[
+                PaymentAdminListItemSchema.model_validate(item)
+                for item in result["items"]
+            ],
+            total_items=result["total_items"],
+            total_pages=result["total_pages"],
+            prev_page=result["prev_page"],
+            next_page=result["next_page"]
+        )
+
+    @staticmethod
+    async def refund(payment_id: int, db: AsyncSession):
+        payment_stmt = select(PaymentsModel).where(
+            PaymentsModel.id == payment_id)
         payment_db = await db.scalar(payment_stmt)
-        if not payment_db:
+
+        if not payment_db or payment_db.status != PaymentStatus.SUCCESSFUL:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Payment not eligible for refund."
+            )
+
+        try:
+            stripe.Refund.create(payment_intent=payment_db.external_payment_id)
+        except stripe.error.StripeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stripe error: {str(e)}")
+
+        return {"message": "Refund request sent to Stripe"}
+
+    @staticmethod
+    async def admin_payment_detail(payment_id, db):
+        db_payment = await db.scalar(
+            select(PaymentsModel)
+            .options(
+                selectinload(PaymentsModel.order).selectinload(
+                    OrderModel.items),
+                selectinload(PaymentsModel.user)
+            ).where(PaymentsModel.id == payment_id)
+        )
+        if not db_payment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Payment not found."
             )
-        if payment_db.status != PaymentStatus.SUCCESSFUL:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Payment cannot be canceled."
-            )
-        payment_db.status = PaymentStatus.CANCELED
-        await db.commit()
-        return await PaymentService.get_order_by_stripe_session(
-            db=db, session_id=session_id
-        )
+        return db_payment

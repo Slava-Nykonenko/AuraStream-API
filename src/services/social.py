@@ -1,11 +1,10 @@
 from typing import List
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Request
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, joinedload
 from sqlalchemy.orm.attributes import set_committed_value
-from starlette.requests import Request
 
 from core.settings import settings
 from database.models.user import (

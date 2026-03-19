@@ -1,8 +1,8 @@
 from urllib.parse import urlencode
 
+from fastapi import Request
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.requests import Request
 
 
 async def generate_page_link(

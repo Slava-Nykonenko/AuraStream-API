@@ -12,12 +12,13 @@ class OrderStatus(enum.Enum):
     PENDING = "PENDING"
     PAID = "PAID"
     PARTIALLY_PAID = "PARTIALLY_PAID"
-    CANCELED = "CANCELLED"
+    CANCELED = "CANCELED"
 
 
 class OrderItemStatus(enum.Enum):
     PENDING = "PENDING"
     PAID = "PAID"
+    CANCELED = "CANCELED"
 
 
 class OrderModel(Base):
