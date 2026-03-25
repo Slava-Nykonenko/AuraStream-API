@@ -22,6 +22,7 @@ from schemas.payments import (
     PaymentAdminListSchema,
     PaymentAdminListItemSchema
 )
+from services.order import OrderService
 from tasks.email_tasks import send_email
 from utils.service_helpers import pagination_helper
 
@@ -350,6 +351,31 @@ class PaymentService:
                 detail=f"Stripe error: {str(e)}")
 
         return {"message": "Refund request sent to Stripe"}
+
+    @staticmethod
+    async def cancel_payment(
+            session_id: str,
+            db: AsyncSession,
+            current_user: UserModel
+    ):
+        stmt = select(PaymentsModel).where(
+            PaymentsModel.external_payment_id == session_id)
+        payment = await db.scalar(stmt)
+
+        if not payment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Payment session not found."
+            )
+
+        payment.status = PaymentStatus.CANCELED
+        await db.flush()
+
+        return await OrderService.cancel_order(
+            db=db,
+            user_id=current_user.id,
+            order_id=payment.order_id
+        )
 
     @staticmethod
     async def admin_payment_detail(payment_id, db):

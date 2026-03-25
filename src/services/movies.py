@@ -6,6 +6,7 @@ from sqlalchemy import select, func, desc, asc
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 
 from database.models.movies import (
     MoviesModel,
@@ -23,8 +24,11 @@ from schemas.movies import (
     GenresListSchema,
     MovieListResponseSchema,
     MovieListItemSchema,
-    GenresListItemSchema
+    GenresListItemSchema,
+    MovieReadSchema,
+    MovieDetailBase, GenresReadSchema
 )
+from schemas.social import CommentsListSchema
 from utils.service_helpers import pagination_helper
 
 
@@ -109,7 +113,7 @@ class MovieService:
             movie_id: int,
             db: AsyncSession,
             user_id: int | None = None
-    ) -> MoviesModel:
+    ) -> MoviesModel | None:
         stats_stmt = select(
             func.avg(RatingModel.score).label("average"),
             func.count(RatingModel.id).label("count")
@@ -131,6 +135,9 @@ class MovieService:
         )
         result = await db.execute(stmt_movie)
         movie = result.scalar_one_or_none()
+
+        if movie is None:
+            return None
 
         if user_id:
             like_check = await db.execute(
@@ -178,7 +185,8 @@ class MovieService:
         certification = await db.scalar(
             select(CertificationsModel).where(
                 func.lower(
-                    CertificationsModel.name) == certification_name.lower()
+                    CertificationsModel.name
+                ) == certification_name.lower()
             )
         )
         if not certification:
@@ -187,11 +195,12 @@ class MovieService:
             await db.flush()
         return certification
 
+    @staticmethod
     async def movie_create(
-            self,
             movie_data: MovieCreateRequestSchema,
             db: AsyncSession
     ):
+        service = MovieService()
         db_movie = await db.scalar(select(MoviesModel).where(
             (MoviesModel.name == movie_data.name)
             & (MoviesModel.year == movie_data.year)
@@ -203,13 +212,14 @@ class MovieService:
                 detail="Movie already exists."
             )
 
-        certification = await self.certification_helper(
+        certification = await service.certification_helper(
             certification_name=movie_data.certification, db=db
         )
 
-        genres = await self.entities_helper(movie_data.genres, GenreModel, db)
-        stars = await self.entities_helper(movie_data.stars, StarsModel, db)
-        directors = await self.entities_helper(
+        genres = await service.entities_helper(movie_data.genres, GenreModel,
+                                               db)
+        stars = await service.entities_helper(movie_data.stars, StarsModel, db)
+        directors = await service.entities_helper(
             movie_data.directors, DirectorModel, db
         )
         new_movie = MoviesModel(
@@ -231,25 +241,25 @@ class MovieService:
         db.add(new_movie)
         try:
             await db.commit()
-            await db.refresh(
-                new_movie,
-                ["certification", "stars", "directors", "genres"]
+            return await MovieService.get_movie_by_id(
+                movie_id=new_movie.id, db=db
             )
-        except SQLAlchemyError:
+        except SQLAlchemyError as e:
             await db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Something went wrong. Try again later."
+                detail=f"Something went wrong. Try again later. {e}"
             )
-        return new_movie
 
+
+    @staticmethod
     async def movie_update(
-            self,
             movie_id: int,
             movie_data: MovieUpdateRequestSchema,
             db: AsyncSession
     ):
-        db_movie = await self.get_movie_by_id(movie_id=movie_id, db=db)
+        service = MovieService()
+        db_movie = await service.get_movie_by_id(movie_id=movie_id, db=db)
         if not db_movie:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -257,23 +267,23 @@ class MovieService:
             )
         update_data = movie_data.model_dump(exclude_unset=True)
         if "stars" in update_data:
-            db_movie.stars = await self.entities_helper(
+            db_movie.stars = await service.entities_helper(
                 update_data.pop("stars"), StarsModel, db
             )
 
         if "directors" in update_data:
-            db_movie.directors = await self.entities_helper(
+            db_movie.directors = await service.entities_helper(
                 update_data.pop("directors"), DirectorModel, db
             )
 
         if "genres" in update_data:
-            db_movie.genres = await self.entities_helper(
+            db_movie.genres = await service.entities_helper(
                 update_data.pop("genres"), GenreModel, db
             )
 
         if "certification" in update_data:
             cert_name = update_data.pop("certification")
-            certification = await self.certification_helper(
+            certification = await service.certification_helper(
                 certification_name=cert_name, db=db
             )
             update_data["certification"] = certification
@@ -283,16 +293,31 @@ class MovieService:
 
         try:
             await db.commit()
-            await db.refresh(db_movie)
+            updated_movie = await service.get_movie_by_id(
+                movie_id=movie_id, db=db
+            )
         except SQLAlchemyError:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Something went wrong. Try again later."
             )
+        for comment in updated_movie.comments:
+            set_committed_value(comment, "replies", [])
+        comments_data = CommentsListSchema(
+            items=updated_movie.comments,
+            total_items=len(updated_movie.comments),
+            total_pages=1,
+            prev_page=None,
+            next_page=None
+        )
 
-        return db_movie
+        return MovieReadSchema(
+            **MovieDetailBase.model_validate(updated_movie).model_dump(),
+            comments=comments_data
+        )
 
-    async def movie_delete(self, movie_id: int, db: AsyncSession):
+    @staticmethod
+    async def movie_delete(movie_id: int, db: AsyncSession):
         ownership_stmt = select(func.count()).select_from(
             OrderItemModel).where(
             OrderItemModel.movie_id == movie_id
@@ -304,7 +329,7 @@ class MovieService:
                 detail="Cannot delete movie: it has been purchased by users."
             )
 
-        db_movie = await self.get_movie_by_id(movie_id=movie_id, db=db)
+        db_movie = await MovieService.get_movie_by_id(movie_id=movie_id, db=db)
         if not db_movie:
             return None
 
@@ -330,12 +355,17 @@ class MovieService:
             stmt = stmt.where(GenreModel.name.ilike(f"%{name}%"))
 
         result = await pagination_helper(
-            request=request, page=page, per_page=per_page, db=db, stmt=stmt
+            request=request, page=page, per_page=per_page,
+            db=db, stmt=stmt, scalars=False
         )
         return GenresListSchema(
             items=[
-                GenresListItemSchema.model_validate(genre)
-                for genre in result["items"]
+                GenresReadSchema(
+                    id=row[0].id,
+                    name=row[0].name,
+                    total_movies=row.total_movies
+                )
+                for row in result["items"]
             ],
             prev_page=result["prev_page"],
             next_page=result["next_page"],

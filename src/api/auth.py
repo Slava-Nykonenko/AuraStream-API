@@ -4,7 +4,6 @@ from fastapi import (
     APIRouter,
     status
 )
-from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,8 +26,6 @@ from schemas.user import (
 from services.auth_user import AuthServices
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
 def get_auth_service():
@@ -141,11 +138,11 @@ async def password_change(
 
 @router.post("/password-reset-request", response_model=MessageSchema)
 async def request_password_reset(
-        email: str,
+        payload: UserBase,
         db: AsyncSession = Depends(get_db),
         auth_service: AuthServices = Depends(get_auth_service)
 ):
-    await auth_service.reset_password(email=email, db=db)
+    await auth_service.reset_password(email=payload.email, db=db)
     return MessageSchema(
         message="If the account exists, a reset email has been sent."
     )

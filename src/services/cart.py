@@ -75,12 +75,12 @@ class CartService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to add item to cart."
             )
-        await db.refresh(cart)
+        await db.refresh(cart, ["items"])
 
         return {
             "status": "success",
             "message": f"'{movie.name}' added to cart.",
-            "item_count": len(cart.items) + 1
+            "item_count": len(cart.items)
         }
 
     @staticmethod
@@ -113,7 +113,7 @@ class CartService:
                 "id": item.id,
                 "movie_id": item.movie_id,
                 "movie_name": item.movie.name,
-                "price": item.movie.price,
+                "price_at_addition": item.movie.price,
                 "added_at": item.added_at
             })
 

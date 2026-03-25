@@ -1,9 +1,14 @@
 import asyncio
+from pathlib import Path
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 
 from core.celery import celery_app
 from core.settings import settings
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+TEMPLATE_FOLDER = BASE_DIR / "templates"
 
 conf = ConnectionConfig(
     MAIL_USERNAME="",
@@ -15,7 +20,7 @@ conf = ConnectionConfig(
     MAIL_SSL_TLS=False,
     USE_CREDENTIALS=False,
     VALIDATE_CERTS=False,
-    TEMPLATE_FOLDER="templates",
+    TEMPLATE_FOLDER=str(TEMPLATE_FOLDER),
 )
 
 TEMPLATES = {

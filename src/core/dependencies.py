@@ -1,6 +1,7 @@
 from typing import List
 
 from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -9,9 +10,11 @@ from database.models.user import UserModel, UserGroupEnum, UserProfileModel
 from database.session_postgresql import get_db
 from utils.tokens import decode_access_token
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
 
 async def get_current_user(
-        token: str,
+        token: str = Depends(oauth2_scheme),
         db: AsyncSession = Depends(get_db)
 ):
     payload = decode_access_token(token)

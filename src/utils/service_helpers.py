@@ -23,6 +23,7 @@ async def pagination_helper(
         per_page: int,
         db: AsyncSession,
         stmt: Select,
+        scalars: bool = True
 ) -> dict:
     offset = (page - 1) * per_page
     count_stmt = select(func.count()).select_from(stmt.subquery())
@@ -39,7 +40,7 @@ async def pagination_helper(
     items = await db.execute(stmt.offset(offset).limit(per_page))
 
     return {
-        "items": items.scalars().all(),
+        "items": items.scalars().all() if scalars else items.all(),
         "total_pages": total_pages,
         "total_items": total_items,
         "prev_page": prev_page,
