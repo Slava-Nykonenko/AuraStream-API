@@ -68,7 +68,7 @@ class UserProfileCreateSchema(UserProfileBaseSchema):
 
     @field_validator("date_of_birth")
     @classmethod
-    def validate_age(cls, value: date):
+    def validate_age(cls, value: Optional[date]):
         today = date.today()
         age = today.year - value.year - (
                     (today.month, today.day) < (value.month, value.day))

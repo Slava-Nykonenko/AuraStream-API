@@ -24,7 +24,7 @@ from schemas.social import (
     SocialActionResponseSchema,
     CommentReadSchema,
     CommentCreateSchema,
-    ReplyCreateSchema
+    ReplyCreateSchema, CommentsListSchema
 )
 from services.movies import MovieService
 from services.social import SocialService
@@ -108,7 +108,17 @@ async def create_movie(
 ):
     service = MovieService()
     new_movie = await service.movie_create(movie_data=movie_data, db=db)
-    return new_movie
+    comments_data = CommentsListSchema.model_validate(
+        {
+            "items": [],
+            "total_items": 0,
+            "total_pages": 1,
+            "prev_page": None,
+            "next_page": None
+        }
+    )
+    movie_dict = MovieDetailBase.model_validate(new_movie).model_dump()
+    return MovieReadSchema(**movie_dict, comments=comments_data)
 
 
 @router.patch("/movies/{movie_id}", response_model=MovieReadSchema)

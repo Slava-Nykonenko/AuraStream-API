@@ -295,6 +295,8 @@ class AuthServices:
 
         user = await db.get(UserModel, token_record.user_id)
         if not user:
+            await db.delete(token_record)
+            await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found."

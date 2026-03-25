@@ -41,11 +41,11 @@ class SocialService:
                 user_favorites.c.user_id == user_id,
                 user_favorites.c.movie_id == movie_id
             ))
-            return "removed"
+            return "removed from"
 
         await db.execute(
             user_favorites.insert().values(user_id=user_id, movie_id=movie_id))
-        return "added"
+        return "added to"
 
     @staticmethod
     async def add_comment(

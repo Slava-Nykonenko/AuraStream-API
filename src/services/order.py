@@ -4,7 +4,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database.models.cart import CartModel, CartItemModel
-from database.models.order import OrderModel, OrderItemModel, OrderStatus
+from database.models.order import (
+    OrderModel,
+    OrderItemModel,
+    OrderStatus,
+    OrderItemStatus
+)
 from database.models.user import UserGroupEnum, UserModel
 from schemas.order import OrderListSchema, OrderListItemSchema
 from utils.service_helpers import pagination_helper
@@ -115,9 +120,15 @@ class OrderService:
 
     @staticmethod
     async def cancel_order(db: AsyncSession, user_id: int, order_id: int):
-        stmt = select(OrderModel).where(
-            OrderModel.id == order_id,
-            OrderModel.user_id == user_id
+        stmt = (
+            select(OrderModel)
+            .where(
+                OrderModel.id == order_id,
+                OrderModel.user_id == user_id
+            )
+            .options(
+                selectinload(OrderModel.items).joinedload(OrderItemModel.movie)
+            )
         )
         order = await db.scalar(stmt)
 
@@ -127,6 +138,9 @@ class OrderService:
                 detail="Order not found."
             )
 
+        for item in order.items:
+            item.status = OrderItemStatus.CANCELED
         order.status = OrderStatus.CANCELED
+
         await db.commit()
         return order

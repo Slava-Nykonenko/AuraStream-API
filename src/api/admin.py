@@ -62,7 +62,10 @@ async def admin_activate_user(
             detail="User not found."
         )
     if user_db.is_active:
-        return MessageSchema(message="User is already active.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already active."
+        )
 
     await auth_service._perform_user_activation(user_db, db)
     await db.commit()
