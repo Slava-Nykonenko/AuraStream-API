@@ -29,7 +29,7 @@ class CartService:
             db: AsyncSession,
             user_id: int,
             payload: CartItemCreateSchema
-    ):
+    ) -> dict[str, str | int]:
         movie = await db.get(MoviesModel, payload.movie_id)
         if not movie:
             raise HTTPException(
@@ -84,7 +84,7 @@ class CartService:
         }
 
     @staticmethod
-    async def get_cart(db: AsyncSession, user_id: int):
+    async def get_cart(db: AsyncSession, user_id: int) -> dict[str, str | int]:
         stmt = (
             select(CartModel)
             .where(CartModel.user_id == user_id)
@@ -126,7 +126,9 @@ class CartService:
         }
 
     @staticmethod
-    async def remove_item(db: AsyncSession, user_id: int, item_id: int):
+    async def remove_item(
+            db: AsyncSession, user_id: int, item_id: int
+    ) -> dict[str, str]:
         stmt = (
             delete(CartItemModel)
             .where(
@@ -147,7 +149,9 @@ class CartService:
         return {"status": "success", "message": "Item removed from cart."}
 
     @staticmethod
-    async def clear_cart(db: AsyncSession, user_id: int):
+    async def clear_cart(
+            db: AsyncSession, user_id: int
+    ) -> dict[str, str]:
         cart_id_stmt = select(CartModel.id).where(CartModel.user_id == user_id)
         cart_id = await db.scalar(cart_id_stmt)
 

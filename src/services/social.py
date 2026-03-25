@@ -29,7 +29,9 @@ BASE_URL = settings.BASE_URL + "/movies"
 
 class SocialService:
     @staticmethod
-    async def toggle_favorite(db: AsyncSession, user_id: int, movie_id: int):
+    async def toggle_favorite(
+            db: AsyncSession, user_id: int, movie_id: int
+    ) -> str:
         stmt = select(user_favorites).where(
             user_favorites.c.user_id == user_id,
             user_favorites.c.movie_id == movie_id
@@ -53,7 +55,7 @@ class SocialService:
             user_id: int,
             movie_id: int,
             content: str
-    ):
+    ) -> CommentModel:
         new_comment = CommentModel(
             user_id=user_id, movie_id=movie_id, content=content, replies=[]
         )
@@ -107,7 +109,7 @@ class SocialService:
         )
         new_reply_loaded = (await db.execute(refresh_stmt)).scalar_one()
 
-        def get_full_name(user_obj):
+        def get_full_name(user_obj: UserModel) -> str:
             profile = user_obj.profile
             first = profile.first_name or ""
             last = profile.last_name or ""
@@ -220,7 +222,7 @@ class SocialService:
     async def profile_retrieve(
             profile_id: int,
             db: AsyncSession,
-    ):
+    ) -> UserProfileModel:
         return await db.scalar(
             select(UserProfileModel).where(UserProfileModel.id == profile_id)
         )

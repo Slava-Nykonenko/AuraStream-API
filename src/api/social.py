@@ -15,7 +15,11 @@ router = APIRouter(prefix="/social", tags=["users", "social"])
 
 @router.get(
     "/profiles",
-    response_model=UserProfilesListSchema
+    response_model=UserProfilesListSchema,
+    summary="List User Profiles",
+    description="Retrieves a paginated directory of all registered user "
+                "profiles. This endpoint is useful for social discovery and "
+                "browsing the community."
 )
 async def get_user_profiles(
         request: Request,
@@ -33,7 +37,13 @@ async def get_user_profiles(
     )
 
 
-@router.get("/profiles/{profile_id}", response_model=UserProfileReadSchema)
+@router.get(
+    "/profiles/{profile_id}",
+    response_model=UserProfileReadSchema,
+    summary="Retrieve Specific Profile",
+    description="Fetches the detailed public profile of a user by their "
+                "unique profile ID."
+)
 async def get_user_profile(
         profile_id: int,
         db: AsyncSession = Depends(get_db),
@@ -45,7 +55,14 @@ async def get_user_profile(
     )
 
 
-@router.post("/me/profile", response_model=UserProfileReadSchema)
+@router.post(
+    "/me/profile",
+    response_model=UserProfileReadSchema,
+    summary="Manage Personal Profile",
+    description="Creates a new personal profile for the authenticated user. "
+                "Note: Each user is restricted to a single profile; attempts "
+                "to create duplicates will result in an error."
+)
 async def create_profile(
     profile_data: UserProfileCreateSchema,
     db: AsyncSession = Depends(get_db),

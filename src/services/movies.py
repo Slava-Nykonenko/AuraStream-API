@@ -24,9 +24,9 @@ from schemas.movies import (
     GenresListSchema,
     MovieListResponseSchema,
     MovieListItemSchema,
-    GenresListItemSchema,
     MovieReadSchema,
-    MovieDetailBase, GenresReadSchema
+    MovieDetailBase,
+    GenresReadSchema
 )
 from schemas.social import CommentsListSchema
 from utils.service_helpers import pagination_helper
@@ -42,7 +42,7 @@ class MovieService:
             per_page: int,
             sort_by: str,
             user_id: int
-    ):
+    ) -> MovieListResponseSchema:
         stmt = select(MoviesModel)
         if filters.get("only_favorites") and user_id:
             stmt = stmt.join(
@@ -199,7 +199,7 @@ class MovieService:
     async def movie_create(
             movie_data: MovieCreateRequestSchema,
             db: AsyncSession
-    ):
+    ) -> MoviesModel:
         service = MovieService()
         db_movie = await db.scalar(select(MoviesModel).where(
             (MoviesModel.name == movie_data.name)
@@ -257,7 +257,7 @@ class MovieService:
             movie_id: int,
             movie_data: MovieUpdateRequestSchema,
             db: AsyncSession
-    ):
+    ) -> MovieReadSchema:
         service = MovieService()
         db_movie = await service.get_movie_by_id(movie_id=movie_id, db=db)
         if not db_movie:
@@ -317,7 +317,7 @@ class MovieService:
         )
 
     @staticmethod
-    async def movie_delete(movie_id: int, db: AsyncSession):
+    async def movie_delete(movie_id: int, db: AsyncSession) -> None:
         ownership_stmt = select(func.count()).select_from(
             OrderItemModel).where(
             OrderItemModel.movie_id == movie_id
@@ -344,7 +344,7 @@ class MovieService:
             page: int,
             per_page: int,
             name: str | None
-    ):
+    ) -> GenresListSchema:
         stmt = (
             select(GenreModel,
                    func.count(MoviesModel.id).label("total_movies"))
@@ -379,7 +379,7 @@ class MovieService:
             movie_id: int,
             user_id: int,
             score: int
-    ):
+    ) -> dict[str, str | int]:
         stmt = select(RatingModel).where(
             RatingModel.movie_id == movie_id,
             RatingModel.user_id == user_id

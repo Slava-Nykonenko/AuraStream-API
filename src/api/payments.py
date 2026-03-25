@@ -11,7 +11,14 @@ from services.payments import PaymentService
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 
-@router.post("/checkout", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/checkout",
+    status_code=status.HTTP_201_CREATED,
+    summary="Initiate Checkout Session",
+    description="Creates a secure Stripe Checkout session for a specific "
+                "PENDING order. Returns a hosted checkout URL where the user "
+                "can safely enter their payment information."
+)
 async def create_payment_intent(
         payload: CheckoutRequestSchema,
         db: AsyncSession = Depends(get_db),
@@ -25,7 +32,14 @@ async def create_payment_intent(
     return {"checkout_url": checkout_url}
 
 
-@router.get("/success", response_model=OrderDetailSchema)
+@router.get(
+    "/success",
+    response_model=OrderDetailSchema,
+    summary="Payment Success Callback",
+    description="The redirect endpoint for successful transactions. "
+                "Retrieves the order details associated with a Stripe session"
+                " to confirm the purchase status to the user."
+)
 async def success(
         session_id: str,
         db: AsyncSession = Depends(get_db)
@@ -41,7 +55,14 @@ async def success(
     return order
 
 
-@router.get("/cancel", response_model=OrderDetailSchema)
+@router.get(
+    "/cancel",
+    response_model=OrderDetailSchema,
+    summary="Payment Cancellation Callback",
+    description="The redirect endpoint used when a user exits the Stripe "
+                "checkout page. Triggers internal status updates to mark the "
+                "payment and order as 'CANCELED'."
+)
 async def cancel_payment(
         session_id: str,
         db: AsyncSession = Depends(get_db),

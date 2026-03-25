@@ -32,7 +32,13 @@ def get_auth_service():
     return AuthServices()
 
 
-@router.post("/register", response_model=MessageSchema)
+@router.post(
+    "/register",
+    response_model=MessageSchema,
+    summary="Register New User",
+    description="Creates a new user account with an 'inactive' status and "
+                "dispatches a verification email."
+)
 async def register_user(
         payload: UserCreateRequest,
         db: AsyncSession = Depends(get_db),
@@ -45,7 +51,13 @@ async def register_user(
         )
 
 
-@router.get("/activate", response_model=MessageSchema)
+@router.get(
+    "/activate",
+    response_model=MessageSchema,
+    summary="Activate Account",
+    description="Validates a unique token to transition a user account from "
+                "'inactive' to 'active'."
+)
 async def activate_account(
         token: str,
         db: AsyncSession = Depends(get_db),
@@ -58,7 +70,13 @@ async def activate_account(
     )
 
 
-@router.post("/refresh-activation-link", response_model=MessageSchema)
+@router.post(
+    "/refresh-activation-link",
+    response_model=MessageSchema,
+    summary="Resend Activation Email",
+    description="Invalidates existing activation tokens and sends a fresh "
+                "link to the user's email."
+)
 async def refresh_activation_link(
         payload: UserBase,
         db: AsyncSession = Depends(get_db),
@@ -74,7 +92,12 @@ async def refresh_activation_link(
     return MessageSchema(message="A new activation link sent to your email.")
 
 
-@router.post("/login", response_model=TokenPairResponse)
+@router.post(
+    "/login",
+    response_model=TokenPairResponse,
+    summary="User Authentication",
+    description="Authenticates credentials and issues a JWT access and refresh token pair."
+)
 async def login(
         payload: LoginSchema,
         db: AsyncSession = Depends(get_db),
@@ -84,7 +107,12 @@ async def login(
     return token_pair
 
 
-@router.post("/refresh", response_model=TokenPairResponse)
+@router.post(
+    "/refresh",
+    response_model=TokenPairResponse,
+    summary="Refresh Session Tokens",
+    description="Exchanges a valid refresh token for a brand new token pair to extend session life."
+)
 async def refresh_access_token(
         payload: RefreshTokenRequest,
         db: AsyncSession = Depends(get_db),
@@ -94,7 +122,12 @@ async def refresh_access_token(
     return token_pair
 
 
-@router.post("/logout", response_model=MessageSchema)
+@router.post(
+    "/logout",
+    response_model=MessageSchema,
+    summary="End User Session",
+    description="Revokes the provided refresh token, effectively logging the user out of the current device."
+)
 async def logout(
         payload: RefreshTokenRequest,
         db: AsyncSession = Depends(get_db),
@@ -116,7 +149,13 @@ async def logout(
     return MessageSchema(message="Successfully logged out")
 
 
-@router.post("/password-change", response_model=MessageSchema)
+@router.post(
+    "/password-change",
+    response_model=MessageSchema,
+    summary="Update Current Password",
+    description="Allows an authenticated user to change their password after "
+                "verifying their old one."
+)
 async def password_change(
         payload: ChangePasswordSchema,
         current_user: UserModel = Depends(get_current_user),
@@ -136,7 +175,13 @@ async def password_change(
     )
 
 
-@router.post("/password-reset-request", response_model=MessageSchema)
+@router.post(
+    "/password-reset-request",
+    response_model=MessageSchema,
+    summary="Initiate Password Recovery",
+    description="Sends a password reset link to the user's email if the "
+                "account exists."
+)
 async def request_password_reset(
         payload: UserBase,
         db: AsyncSession = Depends(get_db),
@@ -148,7 +193,13 @@ async def request_password_reset(
     )
 
 
-@router.post("/password-reset-confirm", response_model=MessageSchema)
+@router.post(
+    "/password-reset-confirm",
+    response_model=MessageSchema,
+    summary="Complete Password Recovery",
+    description="Updates the user password using a valid reset token provided"
+                " in the recovery email."
+)
 async def confirm_password_reset(
         data: PasswordResetCompleteSchema,
         db: AsyncSession = Depends(get_db),

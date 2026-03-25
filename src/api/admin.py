@@ -22,7 +22,13 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 allow_admin_only = RoleChecker([UserGroupEnum.ADMIN])
 
-@router.patch("/change-user-status", response_model=MessageSchema)
+@router.patch(
+    "/change-user-status",
+    response_model=MessageSchema,
+    summary="Update User Role",
+    description="Modifies the permission level of a user (e.g., upgrading a "
+                "User to Moderator or Admin)."
+)
 async def change_user_status(
         payload: ChangeUserGroupSchema,
         db: AsyncSession = Depends(get_db),
@@ -47,7 +53,13 @@ async def change_user_status(
     )
 
 
-@router.patch("/activate-user", response_model=MessageSchema)
+@router.patch(
+    "/activate-user",
+    response_model=MessageSchema,
+    summary="Manual Account Activation",
+    description="Forcefully activates a user account, bypassing the standard "
+                "email verification process."
+)
 async def admin_activate_user(
         payload: UserBase,
         db: AsyncSession = Depends(get_db),
@@ -73,7 +85,13 @@ async def admin_activate_user(
     return MessageSchema(message=f"User {user_db.email} activated by admin.")
 
 
-@router.get("/orders", response_model=OrderListSchema)
+@router.get(
+    "/orders",
+    response_model=OrderListSchema,
+    summary="Global Order History",
+    description="Retrieves a paginated list of all orders placed across the "
+                "entire platform."
+)
 async def get_orders(
         request: Request,
         db: AsyncSession = Depends(get_db),
@@ -90,16 +108,28 @@ async def get_orders(
     )
 
 
-@router.get("/orders/{order_id}", response_model=OrderDetailSchema)
+@router.get(
+    "/orders/{order_id}",
+    response_model=OrderDetailSchema,
+    summary="Fetch Detailed Order Info",
+    description="Returns full item breakdowns and status history for a "
+                "specific order ID."
+)
 async def get_order_detail(
         order_id: int,
         db: AsyncSession = Depends(get_db),
         current_user: UserModel = Depends(allow_admin_only)
 ):
-    return await OrderService.get_order_details()
+    return await OrderService.get_order_details(order_id=order_id, db=db)
 
 
-@router.get("/get_payments", response_model=PaymentAdminListSchema)
+@router.get(
+    "/get_payments",
+    response_model=PaymentAdminListSchema,
+    summary="Filterable Payment Log",
+    description="A comprehensive audit log of all Stripe transactions. "
+                "Supports sorting and complex filtering."
+)
 async def get_payments_list(
         request: Request,
         filter_params: AdminPaymentFilterSchema,
@@ -120,7 +150,13 @@ async def get_payments_list(
     )
 
 
-@router.get("/payments/{payment_id}", response_model=PaymentAdminReadSchema)
+@router.get(
+    "/payments/{payment_id}",
+    response_model=PaymentAdminReadSchema,
+    summary="Detailed Payment Audit",
+    description="Provides an in-depth view of a specific transaction, "
+                "including external Stripe session IDs."
+)
 async def get_payment(
         payment_id: int,
         db: AsyncSession = Depends(get_db),
@@ -131,7 +167,13 @@ async def get_payment(
     )
 
 
-@router.post("/refund-payment", response_model=PaymentReadSchema)
+@router.post(
+    "/refund-payment",
+    response_model=PaymentReadSchema,
+    summary="Process Transaction Refund",
+    description="Initiates a refund via the Stripe API for a successfully "
+                "processed payment."
+)
 async def refund(
         payload: RefundRequestSchema,
         db: AsyncSession = Depends(get_db),
