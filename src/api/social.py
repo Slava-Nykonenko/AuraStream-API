@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.dependencies import get_current_user
 from database.models.user import UserModel
 from database.session_postgresql import get_db
+from schemas.responses import AUTH_ERRORS, NOT_FOUND, PROFILE_ERRORS
 from schemas.social import (
     UserProfilesListSchema,
     UserProfileReadSchema,
@@ -19,7 +20,8 @@ router = APIRouter(prefix="/social", tags=["users", "social"])
     summary="List User Profiles",
     description="Retrieves a paginated directory of all registered user "
                 "profiles. This endpoint is useful for social discovery and "
-                "browsing the community."
+                "browsing the community.",
+    responses={**AUTH_ERRORS}
 )
 async def get_user_profiles(
         request: Request,
@@ -42,7 +44,8 @@ async def get_user_profiles(
     response_model=UserProfileReadSchema,
     summary="Retrieve Specific Profile",
     description="Fetches the detailed public profile of a user by their "
-                "unique profile ID."
+                "unique profile ID.",
+    responses={**AUTH_ERRORS, **NOT_FOUND}
 )
 async def get_user_profile(
         profile_id: int,
@@ -61,7 +64,8 @@ async def get_user_profile(
     summary="Manage Personal Profile",
     description="Creates a new personal profile for the authenticated user. "
                 "Note: Each user is restricted to a single profile; attempts "
-                "to create duplicates will result in an error."
+                "to create duplicates will result in an error.",
+    responses={**PROFILE_ERRORS, **AUTH_ERRORS}
 )
 async def create_profile(
     profile_data: UserProfileCreateSchema,

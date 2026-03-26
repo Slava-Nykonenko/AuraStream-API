@@ -20,6 +20,7 @@ from schemas.movies import (
     MovieRatingResponseSchema,
     MovieRatingPayloadSchema,
 )
+from schemas.responses import SOCIAL_ERRORS, MOVIE_Theater_ERRORS, ADMIN_ONLY
 from schemas.social import (
     SocialActionResponseSchema,
     CommentReadSchema,
@@ -31,7 +32,6 @@ from services.movies import MovieService
 from services.social import SocialService
 
 router = APIRouter(prefix="/movie_theater", tags=["movies"])
-
 
 allow_moderator_plus = RoleChecker(
     [UserGroupEnum.MODERATOR, UserGroupEnum.ADMIN]
@@ -45,7 +45,8 @@ allow_admin_only = RoleChecker([UserGroupEnum.ADMIN])
     summary="Search and Filter Movies",
     description="Retrieve a paginated list of movies with advanced filtering "
                 "by name, year, rating, and genres. Authenticated users can "
-                "specifically filter for their favorite movies."
+                "specifically filter for their favorite movies.",
+    responses={**SOCIAL_ERRORS}
 )
 async def get_movies(
         request: Request,
@@ -78,7 +79,8 @@ async def get_movies(
     response_model=MovieReadSchema,
     summary="Get Detailed Movie Info",
     description="Fetches full metadata for a specific movie, including its "
-                "cast and crew, along with a paginated list of user comments."
+                "cast and crew, along with a paginated list of user comments.",
+    responses={**MOVIE_Theater_ERRORS}
 )
 async def get_movie(
         request: Request,
@@ -119,7 +121,8 @@ async def get_movie(
     response_model=MovieReadSchema,
     summary="Add New Movie (Restricted)",
     description="Adds a new movie entry to the database. Access is limited "
-                "to Moderators and Administrators."
+                "to Moderators and Administrators.",
+    responses={**MOVIE_Theater_ERRORS, **ADMIN_ONLY}
 )
 async def create_movie(
         movie_data: MovieCreateRequestSchema,
@@ -145,7 +148,8 @@ async def create_movie(
     "/movies/{movie_id}",
     response_model=MovieReadSchema,
     summary="Update Movie Metadata",
-    description="Allows partial updates to movie details. Restricted to Moderators and Administrators."
+    description="Allows partial updates to movie details. Restricted to Moderators and Administrators.",
+    responses={**MOVIE_Theater_ERRORS, **ADMIN_ONLY}
 )
 async def update_movie(
         movie_data: MovieUpdateRequestSchema,
@@ -166,7 +170,8 @@ async def update_movie(
     status_code=status.HTTP_200_OK,
     summary="Remove Movie Entry",
     description="Permanently deletes a movie from the catalog. Restricted to "
-                "Moderators and Administrators."
+                "Moderators and Administrators.",
+    responses={**MOVIE_Theater_ERRORS, **ADMIN_ONLY}
 )
 async def delete_movie(
         movie_id: int,
@@ -210,12 +215,13 @@ async def get_genres(
     response_model=SocialActionResponseSchema,
     summary="Toggle Favorite Status",
     description="Adds a movie to the user's favorites list or removes it if "
-                "already present."
+                "already present.",
+    responses={**SOCIAL_ERRORS, **MOVIE_Theater_ERRORS}
 )
 async def toggle_movie_favorite(
-    movie_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+        movie_id: int,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user)
 ):
     service = SocialService()
     action = await service.toggle_favorite(db, current_user.id, movie_id)
@@ -227,13 +233,14 @@ async def toggle_movie_favorite(
     "/{movie_id}/comments",
     response_model=CommentReadSchema,
     summary="Post Movie Comment",
-    description="Submits a new public comment for a movie."
+    description="Submits a new public comment for a movie.",
+    responses={**SOCIAL_ERRORS, **MOVIE_Theater_ERRORS}
 )
 async def post_comment(
-    movie_id: int,
-    payload: CommentCreateSchema,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user)
+        movie_id: int,
+        payload: CommentCreateSchema,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user)
 ):
     service = SocialService()
     comment = await service.add_comment(
@@ -248,7 +255,8 @@ async def post_comment(
     response_model=CommentReadSchema,
     summary="Submit Comment Reply",
     description="Creates a nested reply to an existing comment. Requires a "
-                "valid user profile."
+                "valid user profile.",
+    responses={**SOCIAL_ERRORS, **MOVIE_Theater_ERRORS}
 )
 async def create_comment_reply(
         movie_id: int,
@@ -269,13 +277,14 @@ async def create_comment_reply(
     response_model=MovieRatingResponseSchema,
     summary="Submit Movie Rating",
     description="Assigns a numerical score to a movie. Updates existing "
-                "ratings if the user has already submitted one."
+                "ratings if the user has already submitted one.",
+    responses={**SOCIAL_ERRORS, **MOVIE_Theater_ERRORS}
 )
 async def rate_movie(
-    movie_id: int,
-    payload: MovieRatingPayloadSchema,
-    db: AsyncSession = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user_with_profile)
+        movie_id: int,
+        payload: MovieRatingPayloadSchema,
+        db: AsyncSession = Depends(get_db),
+        current_user: UserModel = Depends(get_current_user_with_profile)
 ):
     return await MovieService.rate_movie(
         db=db,

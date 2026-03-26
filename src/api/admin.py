@@ -13,6 +13,7 @@ from schemas.payments import (
     PaymentAdminReadSchema,
     AdminPaymentFilterSchema
 )
+from schemas.responses import NOT_FOUND, ADMIN_ONLY
 from schemas.user import ChangeUserGroupSchema, MessageSchema, UserBase
 from services.auth_user import AuthServices
 from services.order import OrderService
@@ -22,12 +23,14 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 allow_admin_only = RoleChecker([UserGroupEnum.ADMIN])
 
+
 @router.patch(
     "/change-user-status",
     response_model=MessageSchema,
     summary="Update User Role",
     description="Modifies the permission level of a user (e.g., upgrading a "
-                "User to Moderator or Admin)."
+                "User to Moderator or Admin).",
+    responses={**ADMIN_ONLY, **NOT_FOUND}
 )
 async def change_user_status(
         payload: ChangeUserGroupSchema,
@@ -58,7 +61,11 @@ async def change_user_status(
     response_model=MessageSchema,
     summary="Manual Account Activation",
     description="Forcefully activates a user account, bypassing the standard "
-                "email verification process."
+                "email verification process.",
+    responses={
+        **ADMIN_ONLY, **NOT_FOUND,
+        400: {"model": MessageSchema, "description": "User is already active"}
+    }
 )
 async def admin_activate_user(
         payload: UserBase,
@@ -90,7 +97,8 @@ async def admin_activate_user(
     response_model=OrderListSchema,
     summary="Global Order History",
     description="Retrieves a paginated list of all orders placed across the "
-                "entire platform."
+                "entire platform.",
+    responses={**ADMIN_ONLY}
 )
 async def get_orders(
         request: Request,
@@ -113,7 +121,8 @@ async def get_orders(
     response_model=OrderDetailSchema,
     summary="Fetch Detailed Order Info",
     description="Returns full item breakdowns and status history for a "
-                "specific order ID."
+                "specific order ID.",
+    responses={**ADMIN_ONLY, **NOT_FOUND}
 )
 async def get_order_detail(
         order_id: int,
@@ -128,7 +137,8 @@ async def get_order_detail(
     response_model=PaymentAdminListSchema,
     summary="Filterable Payment Log",
     description="A comprehensive audit log of all Stripe transactions. "
-                "Supports sorting and complex filtering."
+                "Supports sorting and complex filtering.",
+    responses={**ADMIN_ONLY}
 )
 async def get_payments_list(
         request: Request,
@@ -141,12 +151,12 @@ async def get_payments_list(
 ):
     filters = filter_params.model_dump()
     return await PaymentService.get_payments(
-            request=request,
-            db=db,
-            filter_params=filters,
-            page=page,
-            per_page=per_page,
-            sort_by=sort_by
+        request=request,
+        db=db,
+        filter_params=filters,
+        page=page,
+        per_page=per_page,
+        sort_by=sort_by
     )
 
 
@@ -155,7 +165,8 @@ async def get_payments_list(
     response_model=PaymentAdminReadSchema,
     summary="Detailed Payment Audit",
     description="Provides an in-depth view of a specific transaction, "
-                "including external Stripe session IDs."
+                "including external Stripe session IDs.",
+    responses={**ADMIN_ONLY, **NOT_FOUND}
 )
 async def get_payment(
         payment_id: int,
@@ -172,7 +183,11 @@ async def get_payment(
     response_model=PaymentReadSchema,
     summary="Process Transaction Refund",
     description="Initiates a refund via the Stripe API for a successfully "
-                "processed payment."
+                "processed payment.",
+    responses={
+        **ADMIN_ONLY, **NOT_FOUND,
+        400: {"model": MessageSchema, "description": "Stripe processing error"}
+    }
 )
 async def refund(
         payload: RefundRequestSchema,

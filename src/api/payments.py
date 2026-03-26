@@ -6,6 +6,7 @@ from database.models.user import UserModel
 from database.session_postgresql import get_db
 from schemas.order import OrderDetailSchema
 from schemas.payments import CheckoutRequestSchema
+from schemas.responses import PAYMENT_ERRORS, AUTH_ERRORS
 from services.payments import PaymentService
 
 router = APIRouter(prefix="/payments", tags=["payments"])
@@ -17,7 +18,8 @@ router = APIRouter(prefix="/payments", tags=["payments"])
     summary="Initiate Checkout Session",
     description="Creates a secure Stripe Checkout session for a specific "
                 "PENDING order. Returns a hosted checkout URL where the user "
-                "can safely enter their payment information."
+                "can safely enter their payment information.",
+    responses={**PAYMENT_ERRORS, **AUTH_ERRORS}
 )
 async def create_payment_intent(
         payload: CheckoutRequestSchema,
@@ -38,7 +40,8 @@ async def create_payment_intent(
     summary="Payment Success Callback",
     description="The redirect endpoint for successful transactions. "
                 "Retrieves the order details associated with a Stripe session"
-                " to confirm the purchase status to the user."
+                " to confirm the purchase status to the user.",
+    responses={**PAYMENT_ERRORS}
 )
 async def success(
         session_id: str,
@@ -61,7 +64,8 @@ async def success(
     summary="Payment Cancellation Callback",
     description="The redirect endpoint used when a user exits the Stripe "
                 "checkout page. Triggers internal status updates to mark the "
-                "payment and order as 'CANCELED'."
+                "payment and order as 'CANCELED'.",
+    responses={**PAYMENT_ERRORS, **AUTH_ERRORS}
 )
 async def cancel_payment(
         session_id: str,

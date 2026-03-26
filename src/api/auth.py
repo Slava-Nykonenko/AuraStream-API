@@ -13,6 +13,7 @@ from database.models.user import (
     ActivationTokenModel,
 )
 from database.session_postgresql import get_db
+from schemas.responses import NOT_FOUND, AUTH_ERRORS
 from schemas.user import (
     UserCreateRequest,
     TokenPairResponse,
@@ -37,7 +38,10 @@ def get_auth_service():
     response_model=MessageSchema,
     summary="Register New User",
     description="Creates a new user account with an 'inactive' status and "
-                "dispatches a verification email."
+                "dispatches a verification email.",
+    responses={
+        400: {"model": MessageSchema, "description": "User already exists"}
+    }
 )
 async def register_user(
         payload: UserCreateRequest,
@@ -56,7 +60,14 @@ async def register_user(
     response_model=MessageSchema,
     summary="Activate Account",
     description="Validates a unique token to transition a user account from "
-                "'inactive' to 'active'."
+                "'inactive' to 'active'.",
+    responses={
+        **NOT_FOUND,
+        400: {
+            "model": MessageSchema,
+            "description": "Token expired or invalid"
+        }
+    }
 )
 async def activate_account(
         token: str,
@@ -96,7 +107,8 @@ async def refresh_activation_link(
     "/login",
     response_model=TokenPairResponse,
     summary="User Authentication",
-    description="Authenticates credentials and issues a JWT access and refresh token pair."
+    description="Authenticates credentials and issues a JWT access and refresh token pair.",
+    responses={**AUTH_ERRORS}
 )
 async def login(
         payload: LoginSchema,
@@ -111,7 +123,8 @@ async def login(
     "/refresh",
     response_model=TokenPairResponse,
     summary="Refresh Session Tokens",
-    description="Exchanges a valid refresh token for a brand new token pair to extend session life."
+    description="Exchanges a valid refresh token for a brand new token pair to extend session life.",
+    responses={401: {"description": "Invalid refresh token"}}
 )
 async def refresh_access_token(
         payload: RefreshTokenRequest,
@@ -126,7 +139,8 @@ async def refresh_access_token(
     "/logout",
     response_model=MessageSchema,
     summary="End User Session",
-    description="Revokes the provided refresh token, effectively logging the user out of the current device."
+    description="Revokes the provided refresh token, effectively logging the user out of the current device.",
+    responses={**AUTH_ERRORS}
 )
 async def logout(
         payload: RefreshTokenRequest,
@@ -154,7 +168,8 @@ async def logout(
     response_model=MessageSchema,
     summary="Update Current Password",
     description="Allows an authenticated user to change their password after "
-                "verifying their old one."
+                "verifying their old one.",
+    responses={401: {"description": "Incorrect old password"}},
 )
 async def password_change(
         payload: ChangePasswordSchema,
@@ -198,7 +213,13 @@ async def request_password_reset(
     response_model=MessageSchema,
     summary="Complete Password Recovery",
     description="Updates the user password using a valid reset token provided"
-                " in the recovery email."
+                " in the recovery email.",
+    responses={
+        **NOT_FOUND,
+        400: {
+            "model": MessageSchema, "description": "Token expired or invalid"
+        }
+    }
 )
 async def confirm_password_reset(
         data: PasswordResetCompleteSchema,

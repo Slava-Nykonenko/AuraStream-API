@@ -25,13 +25,13 @@ app = FastAPI(
     title="AuraStream API",
     version="0.1.0",
     description="""
-    ## High-Performance Backend for Digital Cinema Management.
+    High-Performance Backend for Digital Cinema Management.
 
     AuraStream provides a comprehensive suite of tools for:
-    * **User & RBAC**: Advanced Role-Based Access Control.
-    * **Media Catalog**: Dynamic movie management and filtering.
-    * **Commerce**: Integrated cart, order fulfillment, and Stripe payments.
-    * **Social**: Real-time user interactions and nested feedback.
+    * User & RBAC: Advanced Role-Based Access Control.
+    * Media Catalog: Dynamic movie management and filtering.
+    * Commerce: Integrated cart, order fulfillment, and Stripe payments.
+    * Social: Real-time user interactions and nested feedback.
     """,
     openapi_tags=[
         {"name": "auth",

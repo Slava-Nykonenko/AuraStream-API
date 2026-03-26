@@ -1,4 +1,4 @@
-from typing import Coroutine
+from typing import Coroutine, Any
 
 from fastapi import APIRouter, Request, Header, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,7 @@ async def stripe_webhook(
     request: Request,
     stripe_signature: str = Header(..., alias="Stripe-Signature"),
     db: AsyncSession = Depends(get_db)
-) -> Coroutine[dict[str, str]]:
+) -> dict[str, str]:
     payload = await request.body()
     return await PaymentService.handle_webhook(
         db=db, payload=payload, sig_header=stripe_signature
