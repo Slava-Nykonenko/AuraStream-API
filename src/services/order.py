@@ -17,7 +17,7 @@ from utils.service_helpers import pagination_helper
 
 class OrderService:
     @staticmethod
-    async def place_order(db: AsyncSession, user_id: int):
+    async def place_order(db: AsyncSession, user_id: int) -> OrderModel:
         cart_stmt = (
             select(CartModel)
             .where(CartModel.user_id == user_id)
@@ -71,7 +71,7 @@ class OrderService:
             per_page: int,
             db: AsyncSession,
             user: UserModel
-    ):
+    ) -> OrderListSchema:
 
         stmt = select(OrderModel)
         if user.group != UserGroupEnum.ADMIN:
@@ -97,7 +97,9 @@ class OrderService:
         )
 
     @staticmethod
-    async def get_order_details(db: AsyncSession, user: UserModel, order_id: int):
+    async def get_order_details(
+            db: AsyncSession, user: UserModel, order_id: int
+    ) -> OrderModel:
         stmt = (
             select(OrderModel)
             .where(OrderModel.id == order_id)
@@ -119,7 +121,9 @@ class OrderService:
         return order
 
     @staticmethod
-    async def cancel_order(db: AsyncSession, user_id: int, order_id: int):
+    async def cancel_order(
+            db: AsyncSession, user_id: int, order_id: int
+    ) -> OrderModel:
         stmt = (
             select(OrderModel)
             .where(

@@ -1,8 +1,9 @@
 import secrets
 from datetime import UTC, datetime, timedelta, timezone
+from typing import Any
 
 from fastapi import HTTPException, status
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, Result
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_user_by_email
@@ -38,7 +39,9 @@ BASE_URL = settings.BASE_URL + "/auth"
 class AuthServices:
 
     @staticmethod
-    async def create_activation_link(user: UserModel, db: AsyncSession):
+    async def create_activation_link(
+            user: UserModel, db: AsyncSession
+    ) -> None:
         token = await create_activation_token(db, user.id)
 
         activation_link = f"{BASE_URL}/activate?token={token}"
@@ -53,7 +56,9 @@ class AuthServices:
         )
         return None
 
-    async def sign_up(self, payload: UserCreateRequest, db: AsyncSession):
+    async def sign_up(
+            self, payload: UserCreateRequest, db: AsyncSession
+    ) -> bool:
         email = payload.email.lower()
         existing_user_stmt = select(UserModel).where(
             UserModel.email == email)
@@ -81,7 +86,9 @@ class AuthServices:
         return True
 
     @staticmethod
-    async def sign_in(payload: LoginSchema, db: AsyncSession):
+    async def sign_in(
+            payload: LoginSchema, db: AsyncSession
+    ) -> dict[str, str | Any]:
         result = await db.execute(
             select(UserModel).where(UserModel.email == payload.email)
         )
@@ -118,7 +125,7 @@ class AuthServices:
     async def _perform_user_activation(
             user: UserModel,
             db: AsyncSession
-    ):
+    ) -> UserModel:
         user.is_active = True
 
         token_stmt = delete(ActivationTokenModel).where(
@@ -133,7 +140,7 @@ class AuthServices:
     async def refresh_token_pair(
             payload: RefreshTokenRequest,
             db: AsyncSession
-    ):
+    ) -> dict[str, Any]:
         stmt = select(RefreshTokenModel).where(
             RefreshTokenModel.token == payload.refresh_token)
         result = await db.execute(stmt)
@@ -181,7 +188,9 @@ class AuthServices:
             "token_type": "bearer"
         }
 
-    async def activate_user_by_token(self, token: str, db: AsyncSession):
+    async def activate_user_by_token(
+            self, token: str, db: AsyncSession
+    ) -> UserModel:
         stmt = select(ActivationTokenModel).where(
             ActivationTokenModel.token == token)
         result = await db.execute(stmt)
@@ -217,7 +226,7 @@ class AuthServices:
             payload: RefreshTokenRequest,
             current_user: UserModel,
             db: AsyncSession
-    ):
+    ) -> Result:
         stmt = delete(RefreshTokenModel).where(
             RefreshTokenModel.token == payload.refresh_token,
             RefreshTokenModel.user_id == current_user.id
@@ -231,7 +240,7 @@ class AuthServices:
             payload: ChangePasswordSchema,
             user: UserModel,
             db: AsyncSession
-    ):
+    ) -> bool:
         if not verify_password(payload.old_password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -251,7 +260,7 @@ class AuthServices:
         return True
 
     @staticmethod
-    async def reset_password(email: str, db: AsyncSession):
+    async def reset_password(email: str, db: AsyncSession) -> None:
         user = await get_user_by_email(email=email, db=db)
         reset_token = await create_password_reset_token(db=db, user_id=user.id)
 
@@ -271,7 +280,7 @@ class AuthServices:
     async def reset_password_confirm(
             data: PasswordResetCompleteSchema,
             db: AsyncSession
-    ):
+    ) -> None:
         stmt = select(PasswordResetTokenModel).where(
             PasswordResetTokenModel.token == data.token
         )
@@ -322,7 +331,7 @@ class AuthServices:
             user: UserModel,
             user_group: UserGroupEnum,
             db: AsyncSession
-    ):
+    ) -> UserModel:
         group_stmt = select(UserGroupModel).where(
             UserGroupModel.name == user_group
         )

@@ -35,7 +35,7 @@ class PaymentService:
             db: AsyncSession,
             payload: CheckoutRequestSchema,
             user_id: int,
-    ):
+    ) -> str:
         stmt = (
             select(OrderModel)
             .where(OrderModel.id == payload.order_id)
@@ -120,7 +120,9 @@ class PaymentService:
             )
 
     @staticmethod
-    async def handle_webhook(db: AsyncSession, payload, sig_header):
+    async def handle_webhook(
+            db: AsyncSession, payload: bytes, sig_header: str
+    ) -> dict[str, str]:
         try:
             event = stripe.Webhook.construct_event(
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
@@ -147,7 +149,7 @@ class PaymentService:
     async def handle_refund_webhook(
             db: AsyncSession,
             stripe_refund_object: dict
-    ):
+    ) -> None:
         payment_intent_id = stripe_refund_object.get("payment_intent")
 
         stmt = (
@@ -170,7 +172,9 @@ class PaymentService:
             )
 
     @staticmethod
-    async def _fulfill_payment(db: AsyncSession, session_id: str):
+    async def _fulfill_payment(
+            db: AsyncSession, session_id: str
+    ) -> None | dict[str, str]:
         stmt = (
             select(PaymentsModel)
             .where(PaymentsModel.external_payment_id == session_id)
@@ -229,7 +233,7 @@ class PaymentService:
             user_id: int,
             page: int,
             per_page: int
-    ):
+    ) -> PaymentListSchema:
         stmt = select(PaymentsModel).where(
             PaymentsModel.user_id == user_id).order_by(
             PaymentsModel.created_at.desc())
@@ -248,7 +252,7 @@ class PaymentService:
             page: int,
             per_page: int,
             filters: dict
-    ):
+    ) -> dict:
         stmt = select(PaymentsModel).options(joinedload(PaymentsModel.user))
 
         if filters.get("user_id"):
@@ -263,7 +267,9 @@ class PaymentService:
         return await pagination_helper(request, page, per_page, db, stmt)
 
     @staticmethod
-    async def get_order_by_stripe_session(db: AsyncSession, session_id: str):
+    async def get_order_by_stripe_session(
+            db: AsyncSession, session_id: str
+    ) -> OrderModel:
         stmt = (
             select(OrderModel)
             .join(PaymentsModel, PaymentsModel.order_id == OrderModel.id)
@@ -288,7 +294,7 @@ class PaymentService:
             page: int,
             per_page: int,
             sort_by: str
-    ):
+    ) -> PaymentAdminListSchema:
         stmt = select(PaymentsModel)
         if filter_params.get("user_id"):
             stmt = stmt.where(
@@ -332,7 +338,7 @@ class PaymentService:
         )
 
     @staticmethod
-    async def refund(payment_id: int, db: AsyncSession):
+    async def refund(payment_id: int, db: AsyncSession) -> dict[str, str]:
         payment_stmt = select(PaymentsModel).where(
             PaymentsModel.id == payment_id)
         payment_db = await db.scalar(payment_stmt)
@@ -357,7 +363,7 @@ class PaymentService:
             session_id: str,
             db: AsyncSession,
             current_user: UserModel
-    ):
+    ) -> OrderModel:
         stmt = select(PaymentsModel).where(
             PaymentsModel.external_payment_id == session_id)
         payment = await db.scalar(stmt)
@@ -378,7 +384,9 @@ class PaymentService:
         )
 
     @staticmethod
-    async def admin_payment_detail(payment_id, db):
+    async def admin_payment_detail(
+            payment_id: int, db: AsyncSession
+    ) -> PaymentsModel:
         db_payment = await db.scalar(
             select(PaymentsModel)
             .options(

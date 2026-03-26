@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Request, Header, HTTPException, Depends, status
+from typing import Coroutine, Any
+
+from fastapi import APIRouter, Request, Header, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.session_postgresql import get_db
@@ -12,7 +14,7 @@ async def stripe_webhook(
     request: Request,
     stripe_signature: str = Header(..., alias="Stripe-Signature"),
     db: AsyncSession = Depends(get_db)
-):
+) -> dict[str, str]:
     payload = await request.body()
     return await PaymentService.handle_webhook(
         db=db, payload=payload, sig_header=stripe_signature
